@@ -81,8 +81,7 @@ module ETL::Job
         logger.info("Running...")
         @job_run.running()
         result = run_internal()
-        logger.info("Success! #{result.num_rows_success} rows; "\
-          + "#{result.num_rows_error} errors; #{result.message}")
+        logger.info("Success! #{result.message}")
         @job_run.success(result)
       rescue ::StandardError => ex
         # catch this so we can store it with the result

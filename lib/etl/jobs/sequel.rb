@@ -117,6 +117,7 @@ module ETL::Job
       reader.each_row_batch(@row_batch_size) do |rows|
         load_temp_data_batch(conn, temp_table_name, rows)
       end
+      reader.rows_processed
     end
 
     # Load a single batch of rows (passed in as array) into the temp table
@@ -182,7 +183,6 @@ SQL
     # affected rows
     def load_destination_table(conn, temp_table_name, dest_table)
       q_dest_table = quote_ident(dest_table)
-      rows_changed = 0
       # build array of quoted column names
       col_names = schema.columns.keys
       col_names.collect! { |x| quote_ident(x) }
@@ -268,7 +268,6 @@ SQL
 
         logger.debug(sql)
         conn.fetch(sql).all
-        rows_changed += 0
 
         # for upsert we also insert records that don't exist yet
         if load_strategy == :upsert
@@ -283,9 +282,7 @@ insert into #{q_dest_table}
 SQL
           logger.debug(sql)
           conn.fetch(sql).all
-          rows_changed += 0
         end
-        rows_changed
 
       # else this is just a standard insert of entire temp table
       else
@@ -297,7 +294,6 @@ insert into #{q_dest_table}
 SQL
         logger.debug(sql)
         conn.fetch(sql).all
-        rows_changed += 0
       end
     end
     
@@ -321,16 +317,16 @@ SQL
         temp_table_name = create_temp(@conn)
 
         # Load data into temp table
-        load_temp_data(@conn, temp_table_name)
+        rows_success = load_temp_data(@conn, temp_table_name)
 
         # Perform full table transformation on the temp table
         dest_table = feed_name
         transform_table(@conn, temp_table_name, dest_table)
 
         # Load temp table records into destination table
-        rows_success = load_destination_table(@conn, temp_table_name, dest_table)
+        load_destination_table(@conn, temp_table_name, dest_table)
 
-        msg = "Wrote #{rows_success} rows to #{dest_table}"
+        msg = "Processed #{rows_success} input rows for #{dest_table}"
       end
 
       # Final result

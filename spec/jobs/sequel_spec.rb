@@ -164,7 +164,7 @@ SQL
 
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch("select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day, condition from test_1 order by day asc")
@@ -214,7 +214,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     d1 = "2015-02-03 12:34:56"
@@ -231,7 +231,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(2)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(2)
+    expect(jr.num_rows_success).to eq(2)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
@@ -274,7 +274,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     d1 = "2015-02-03 12:34:56"
@@ -291,7 +291,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(2)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(2)
+    expect(jr.num_rows_success).to eq(2)
     expect(jr.num_rows_error).to eq(0)
 
 
@@ -333,7 +333,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     d1 = "2015-02-03 12:34:56"
@@ -351,7 +351,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
@@ -394,7 +394,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     d1 = "2015-02-03 12:34:56"
@@ -412,7 +412,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(2)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
@@ -452,7 +452,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     d1 = "2015-02-03 12:34:56"
@@ -470,7 +470,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
@@ -515,7 +515,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(6)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(6)
     expect(jr.num_rows_error).to eq(0)
 
     data = [
@@ -531,7 +531,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(4)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(4)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
@@ -583,7 +583,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(3)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(3)
     expect(jr.num_rows_error).to eq(0)
 
     # run with partition 2014-04-02, Portland
@@ -598,7 +598,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(2)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(2)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
@@ -628,7 +628,7 @@ SQL
     jr = job.run(batch)
     expect(input.rows_processed).to eq(2)
     expect(jr.status).to eq(:success)
-    # XXX expect(jr.num_rows_success).to eq(3)
+    expect(jr.num_rows_success).to eq(2)
     expect(jr.num_rows_error).to eq(0)
 
     result = conn.fetch(<<SQL
