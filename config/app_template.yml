@@ -1,0 +1,15 @@
+log:
+  class: ETL::Logger
+  level: info
+  log_dir: log # relative to ETL root
+queue_config:
+  amqp_uri: "amqp://user:password@host:port/"
+  vhost: "vhost"
+  heartbeat: 30
+  channel_pool_size: 2
+  prefetch_count: 5
+  queue: "outreach_etl"
+  source: source
+  dest: destination
+  day_cutoff_hour: 4 # am - when we switch to loading current day
+  delay_mins: 0.1 # minutes between queueing job runs

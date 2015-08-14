@@ -13,6 +13,7 @@ module ETL
       end
     end
   end
+  
 
   # Logger class that includes time stamp and severity for all messages
   class Logger < ::Logger
@@ -41,6 +42,30 @@ module ETL
         msg += "<no backtrace available>"
       end
       add(severity) { msg }
+    end
+    
+    # Sets severity level based on string representation of severity (e.g.
+    # from config file)
+    def set_severity_string(str)
+      sev_threshold = Logger.string_to_severity(str)
+    end
+
+    # Converts string representation of severity into a Logger constant
+    def self.string_to_severity(str)
+      case str.downcase
+      when "debug"
+        Logger::DEBUG
+      when "info"
+        Logger::INFO
+      when "warn"
+        Logger::WARN
+      when "error"
+        Logger::ERROR
+      when "fatal"
+        Logger::FATAL
+      else
+        Logger::INFO
+      end
     end
     
     # Formatter that includes time stamp and severity. Also provides ability

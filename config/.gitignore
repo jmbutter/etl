@@ -2,3 +2,5 @@
 # proper locations
 
 database.yml
+app.yml
+schema.yml

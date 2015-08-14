@@ -11,6 +11,9 @@ require 'etl/jobs/result.rb'
 require 'etl/jobs/base.rb'
 
 # Models
+# Set up the database connection that's needed for Sequel models
+# Also we can use the DB constant in the rest of the code
+DB = Sequel::Model.db = Sequel.connect(ETL.db_config[ETL.context.env])
 Sequel::Model.plugin :timestamps
 require 'etl/models/job_run_status.rb'
 require 'etl/models/job.rb'
@@ -36,9 +39,3 @@ require 'etl/transform/base.rb'
 require 'etl/transform/date_trunc.rb'
 require 'etl/transform/map_to_nil.rb'
 require 'etl/transform/zip5.rb'
-
-module ETL
-  def ETL.logger
-    return ETL::Logger.new(ETL.log_file)
-  end
-end  
