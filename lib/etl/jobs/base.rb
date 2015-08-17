@@ -2,12 +2,14 @@ module ETL::Job
 
   # Base class for all ETL jobs
   class Base
-    attr_accessor :feed_name, :schema, :reader, :load_strategy, :batch, :job_run
+    attr_accessor :feed_name, :schema, :reader, :load_strategy, :batch
 
-    def initialize(reader = nil)
+    def initialize(params = {})
       @reader = reader
       @schema = default_schema
       @load_strategy = :unknown if @load_strategy.nil?
+      @batch = {} if @batch.nil?
+      @feed_name = 'UNKNOWN' if @feed_name.nil?
     end
     
     # Returns the default schema for this job. Some derived jobs may be able
@@ -20,15 +22,6 @@ module ETL::Job
     # derived classes may want to override this.
     def name
       @feed_name
-    end
-
-    # Returns the ActiveModel Job object
-    def model()
-      # return the model if we already have it cached in this instance
-      return @model unless @model.nil?
-
-      # get the model out of the DB
-      @model = ETL::Model::Job.register(self.class.to_s())
     end
 
     # Initialize the logger with our job and batch info
@@ -73,26 +66,11 @@ module ETL::Job
 
     # Runs the job for the batch, keeping the status updated and handling
     # exceptions.
-    def run(b)
-      @batch = b
-      @job_run = model().create_run(@batch)
-
-      begin
-        logger.info("Running...")
-        @job_run.running()
-        result = run_internal()
-        logger.info("Success! #{result.message}")
-        @job_run.success(result)
-      rescue ::StandardError => ex
-        # catch this so we can store it with the result
-        result = Result.new
-        result.message = ex.message
-        @job_run.error(result)
-        # we don't log it here - let caller do that if they want
-        raise
-      end
-
-      return @job_run
+    def run
+      logger.info("Running...")
+      result = run_internal()
+      logger.info("Success! #{result.message}")
+      return result
     end
 
     # Helper function for output schema definition DSL

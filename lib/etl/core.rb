@@ -5,10 +5,13 @@ end
 require 'sequel'
 
 # Core classes
-require 'etl/logger.rb'
 require 'etl/exception.rb'
 require 'etl/jobs/result.rb'
 require 'etl/jobs/base.rb'
+
+# Utilities
+require 'etl/util/logger.rb'
+require 'etl/util/hash_util.rb'
 
 # Models
 # Set up the database connection that's needed for Sequel models

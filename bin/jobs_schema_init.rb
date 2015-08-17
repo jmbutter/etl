@@ -65,6 +65,7 @@ conn.create_table(:job_runs) do
   DateTime :updated_at, null: false
   Integer :job_id, :null => false, :index => true
   Integer :job_run_status_id, :null => false, :index => true
+  DateTime :queued_at
   DateTime :run_start_time
   DateTime :run_end_time
   Integer :num_rows_success
@@ -75,9 +76,7 @@ end
 
 # seed data
 [
-  { label: :new, name: "New" },
-  { label: :blocked, name: "Blocked on Dependencies" },
-  { label: :ready, name: "Ready to Run" },
+  { label: :queued, name: "Queued" },
   { label: :running, name: "Running" },
   { label: :success, name: "Success" },
   { label: :error, name: "Error" },
