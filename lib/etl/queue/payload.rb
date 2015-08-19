@@ -5,6 +5,10 @@ module ETL::Queue
   # Class representing the payload we are putting into and off the job queue
   class Payload
     attr_accessor :job_id, :batch
+    
+    def initialize
+      @batch = {}
+    end
 
     def job_model
       ETL::Model::Job[@job_id]
@@ -16,8 +20,10 @@ module ETL::Queue
     
     # encodes the payload into a string for storage in a queue
     def encode
-      h = @batch.clone
-      h[:job_id] = @job_id
+      h = {
+        :batch => @batch.clone,
+        :job_id => @job_id
+      }
       h.to_json.to_s
     end
     
@@ -26,8 +32,9 @@ module ETL::Queue
     def self.decode(str)
       h = ETL::HashUtil.symbolize_keys(JSON.parse(str))
       payload = ETL::Queue::Payload.new
-      payload.job_id = params[:job_id]
-      payload.batch = params[:batch]
+      payload.job_id = h[:job_id]
+      payload.batch = h[:batch]
       payload
+    end
   end
 end

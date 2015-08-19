@@ -1,3 +1,4 @@
+require 'etl/queue/payload.rb'
 
 module ETL::Queue
 
@@ -16,9 +17,9 @@ module ETL::Queue
     def purge
     end
 
-    # Returns description of the queue status
-    def status
-      nil
+    # Returns number of messages in the queue
+    def message_count
+      0
     end
     
     # Acknowledges that the specified message d

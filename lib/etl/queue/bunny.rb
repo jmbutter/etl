@@ -32,8 +32,8 @@ module ETL::Queue
       @queue.purge
     end
     
-    def status
-      @queue.status
+    def message_count
+      @queue.message_count
     end
 
     def process_async
