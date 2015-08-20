@@ -67,10 +67,12 @@ module ETL::Queue
         jr.exception(ex)
         raise
       rescue Exception => ex
-        # save the message for all other exceptions and then rethrow
+        # for all other exceptions: save the message and rethrow
         jr.exception(ex)
         raise
       end
+      
+      return jr
     end
     
     private
@@ -83,8 +85,7 @@ module ETL::Queue
       # Extract info from payload
       job_model = @payload.job_model
       raise "Invalid job_id in payload: '#{@payload.job_id}'" unless job_model
-      batch = JSON.parse(@payload.batch)
-      [batch, job_model]
+      [@payload.batch, job_model]
     end
   end
 end
