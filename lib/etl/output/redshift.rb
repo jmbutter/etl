@@ -12,12 +12,6 @@ module ETL::Output
       super()
 
       @aws_params = aws_params
-      Aws.config.update({
-        region: @aws_params[:region],
-        credentials: Aws::Credentials.new(
-          @aws_params[:access_key_id],
-          @aws_params[:secret_access_key])
-      })
       @load_strategy = load_strategy
       @conn = nil
       @conn_params = conn_params
@@ -103,7 +97,7 @@ SQL
       sql =<<SQL
         COPY #{staging_table}
         FROM 's3://#{@bucket}/#{dest_table}'
-        CREDENTIALS 'aws_access_key_id=#{@aws_params[:access_key_id]};aws_secret_access_key=#{@aws_params[:secret_access_key]}'
+        IAM_ROLE '#{@aws_params[:iam_role_arn]}'
         DELIMITER ','
         IGNOREHEADER 1 
         REGION '#{@aws_params[:region]}'
@@ -204,7 +198,7 @@ SQL
         sql = <<SQL
         COPY #{@dest_table}
         FROM 's3://#{@bucket}/#{@dest_table}'
-        CREDENTIALS 'aws_access_key_id=#{@aws_params[:access_key_id]};aws_secret_access_key=#{@aws_params[:secret_access_key]}'
+        IAM_ROLE '#{@aws_params[:iam_role_arn]}'
         DELIMITER ','
         IGNOREHEADER 1 
         REGION '#{@aws_params[:region]}'
