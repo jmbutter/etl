@@ -15,7 +15,8 @@ module ETL::Output
       @load_strategy = load_strategy
       @conn = nil
       @conn_params = conn_params
-      @bucket = @aws_params[:s3_bucket] 
+      @bucket = @aws_params[:s3_bucket]
+      @redshift_role_arn = @conn_params[:role_arn]
     end
 
     def conn
@@ -97,7 +98,7 @@ SQL
       sql =<<SQL
         COPY #{staging_table}
         FROM 's3://#{@bucket}/#{dest_table}'
-        IAM_ROLE '#{@aws_params[:iam_role_arn]}'
+        IAM_ROLE '#{@redshift_role_arn}'
         DELIMITER ','
         IGNOREHEADER 1 
         REGION '#{@aws_params[:region]}'
@@ -198,7 +199,7 @@ SQL
         sql = <<SQL
         COPY #{@dest_table}
         FROM 's3://#{@bucket}/#{@dest_table}'
-        IAM_ROLE '#{@aws_params[:iam_role_arn]}'
+        IAM_ROLE '#{@redshift_role_arn}'
         DELIMITER ','
         IGNOREHEADER 1 
         REGION '#{@aws_params[:region]}'
