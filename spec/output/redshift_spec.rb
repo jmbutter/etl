@@ -10,9 +10,11 @@ end
   
 # Test loading into Redshift
 class TestRedshiftCreate1 < ETL::Output::Redshift
-  def initialize()
+  def initialize(table_name)
     super(:insert_append, rspec_redshift_params, rspec_aws_params) 
-    @dest_table = "test_1"
+    @dest_table = table_name 
+    @csv_file = "#{ETL.root}/spec/data/simple1.csv"
+    @key = table_name 
 
     define_schema do |s|
       s.int("build_number")
@@ -29,9 +31,11 @@ class TestRedshiftCreate1 < ETL::Output::Redshift
 end
 
 class TestRedshiftLoad1 < ETL::Output::Redshift
-  def initialize(load_strategy, table_name)
+  def initialize(load_strategy, table_name, file)
     super(load_strategy, rspec_redshift_params, rspec_aws_params)
     @dest_table = table_name
+    @csv_file = file
+    @key = table_name
 
     define_schema do |s|
       s.date(:day)
@@ -101,6 +105,14 @@ RSpec.describe "redshift output" do
     obj.put(body: str)
   end
 
+  def make_csv(file, matrix)
+    CSV.open(file, "w") do |c|
+      matrix.each_index do |indx|
+        c << matrix.fetch(indx)
+      end
+    end
+  end
+
    # Helper to initialize database connection and create table
   def init_conn_table(table_name)
     conn = get_conn()
@@ -126,8 +138,8 @@ SQL
     
     # Create destination table
     sql = <<SQL
-drop table if exists test_1;
-create table test_1 (
+drop table if exists #{table_name};
+create table #{table_name} (
   day timestamp, 
   condition varchar, 
   value_int int, 
@@ -138,14 +150,14 @@ SQL
 
     batch = ETL::Batch.new({ :day => "2015-03-31" })
 
-    upload_file_to_s3("test_1","#{ETL.root}/spec/data/simple1.csv") 
+    #upload_file_to_s3("test_1","#{ETL.root}/spec/data/simple1.csv") 
 
-    job = TestRedshiftCreate1.new()
+    job = TestRedshiftCreate1.new(table_name)
 
     job.batch = batch
     jr = job.run
 
-    result = conn.exec("select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day, condition from test_1 order by day asc")
+    result = conn.exec("select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day, condition from #{table_name} order by day asc")
     
     exp_values = [
       ["2015-04-01 00:00:00", "rain"],
@@ -164,30 +176,34 @@ SQL
     d1 = "2015-02-03 12:34:56"
     d2 = "2015-02-04 01:23:45"
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-01, 10, 1, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 11, 2, "+d1+", "+d2+"\n"
-    data += "2015-04-03, 12, 3, "+d1+", "+d2+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-01", 10, 1, d1, d2])
+    data.push(["2015-04-02", 11, 2, d1, d2])
+    data.push(["2015-04-03", 12, 3, d1, d2])
 
-    upload_string_to_s3(table_name, data)
+    #upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name)
+    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
+
     job.batch = batch
     jr = job.run
 
     today = DateTime.now.strftime("%F %T")
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-02, 11, 4, "+today+", "+today+"\n"
-    data += "2015-04-02, 13, 5, "+today+", "+today+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-02", 11, 4, today, today])
+    data.push(["2015-04-02", 13, 5, today, today])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name)
+    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
-    result = conn.exec(<<SQL
+    sql =<<SQL
 select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
   , id
   , value
@@ -196,7 +212,7 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name} 
 order by day, id, value;
 SQL
-    )
+    result = conn.exec(sql)
 
     exp_values = [
       ["2015-04-01 00:00:00", "10", "1", d1, d2],
@@ -215,15 +231,16 @@ SQL
     d1 = "2015-02-03 12:34:56"
     d2 = "2015-02-04 01:23:45"
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-01, 10, 1, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 11, 2, "+d1+", "+d2+"\n"
-    data += "2015-04-03, 12, 3, "+d1+", "+d2+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-01", 10, 1, d1, d2])
+    data.push(["2015-04-02", 11, 2, d1, d2])
+    data.push(["2015-04-03", 12, 3, d1, d2])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
     batch = ETL::Batch.new({ :day => "2015-04-03" })
 
-    job = TestRedshiftLoad1.new(:insert_table, table_name)
+    job = TestRedshiftLoad1.new(:insert_table, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
@@ -232,17 +249,18 @@ SQL
 
     today = DateTime.now.strftime("%F %T")
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-02, 11, 4, "+today+", "+today+"\n"
-    data += "2015-04-02, 13, 5, "+today+", "+today+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-02", 11, 4, today, today])
+    data.push(["2015-04-02", 13, 5, today, today])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_table, table_name)
+    job = TestRedshiftLoad1.new(:insert_table, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
-    result = conn.exec(<<SQL
+    sql =<<SQL
 select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
   , id
   , value
@@ -251,7 +269,7 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name} 
 order by day, id, value;
 SQL
-    )
+    result = conn.exec(sql)
 
     exp_values = [
       ["2015-04-02 00:00:00", "11", "4", today, today],
@@ -268,35 +286,35 @@ SQL
     d1 = "2015-02-03 12:34:56"
     d2 = "2015-02-04 01:23:45"
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-01, 10, 1, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 11, 2, "+d1+", "+d2+"\n"
-    data += "2015-04-03, 12, 3, "+d1+", "+d2+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-01", 10, 1, d1, d2])
+    data.push(["2015-04-02", 11, 2, d1, d2])
+    data.push(["2015-04-03", 12, 3, d1, d2])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
     batch = ETL::Batch.new({ :day => "2015-04-02" })
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name)
+    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
     today = DateTime.now.strftime("%F %T")
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-02, 11, 4, "+today+", "+today+"\n"
-    data += "2015-04-02, 13, 5, "+today+", "+today+"\n"
-    data += "2015-04-05, 12, 6, "+today+", "+today+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-02", 11, 4, today, today])
+    data.push(["2015-04-02", 13, 5, today, today])
+    data.push(["2015-04-05", 12, 6, today, today])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:update, table_name)
-    #job.staging_s3key = table_name
-    #job.staging_bucket = ENV['REDSHIFT_BUCKET']
+    job = TestRedshiftLoad1.new(:update, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
-    result = conn.exec(<<SQL
+    sql =<<SQL
 select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
   , id
   , value
@@ -305,7 +323,7 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name} 
 order by day, id, value;
 SQL
-    )
+    result = conn.exec(sql)
 
     exp_values = [
       ["2015-04-01 00:00:00", "10", "1", d1, d2],
@@ -325,31 +343,33 @@ SQL
     d1 = "2015-02-03 12:34:56"
     d2 = "2015-02-04 01:23:45"
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-01, 10, 1, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 11, 2, "+d1+", "+d2+"\n"
-    data += "2015-04-03, 12, 3, "+d1+", "+d2+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-01", 10, 1, d1, d2])
+    data.push(["2015-04-02", 11, 2, d1, d2])
+    data.push(["2015-04-03", 12, 3, d1, d2])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name)
+    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
     today = DateTime.now.strftime("%F %T")
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-02, 11, 4, "+today+", "+today+"\n"
-    data += "2015-04-02, 13, 5, "+today+", "+today+"\n"
-    data += "2015-04-05, 12, 6, "+today+", "+today+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-02", 11, 4, today, today])
+    data.push(["2015-04-02", 13, 5, today, today])
+    data.push(["2015-04-05", 12, 6, today, today])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:upsert, table_name)
+    job = TestRedshiftLoad1.new(:upsert, table_name, '/tmp/test2.txt')
     job.batch = batch
     jr = job.run
 
-    result = conn.exec(<<SQL
+    sql =<<SQL
 select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
   , id
   , value
@@ -358,7 +378,7 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name} 
 order by id, day, value
 SQL
-    )
+    result = conn.exec(sql)
 
     exp_values = [
       ["2015-04-01 00:00:00", "10", "1", d1, d2],
@@ -379,42 +399,44 @@ SQL
     d1 = "2015-02-03 12:34:56"
     d2 = "2015-02-04 01:23:45"
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-01, 10, 1, "+d1+", "+d2+"\n"
-    data += "2015-04-01, 11, 2, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 11, 3, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 12, 4, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 13, 5, "+d1+", "+d2+"\n"
-    data += "2015-04-03, 10, 6, "+d1+", "+d2+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-01", 10, 1, d1, d2])
+    data.push(["2015-04-01", 11, 2, d1, d2])
+    data.push(["2015-04-02", 11, 3, d1, d2])
+    data.push(["2015-04-02", 12, 4, d1, d2])
+    data.push(["2015-04-02", 13, 5, d1, d2])
+    data.push(["2015-04-03", 10, 6, d1, d2])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:upsert, table_name)
+    job = TestRedshiftLoad1.new(:upsert, table_name, '/tmp/test2.txt')
     job.schema.primary_key = [:day, :id]
     job.batch = batch
     jr = job.run
 
-    data = "day, id, value, dw_created, dw_updated\n"
-    data += "2015-04-02, 11, 10, "+d1+", "+d2+"\n"
-    data += "2015-04-02, 14, 11, "+d1+", "+d2+"\n"
-    data += "2015-04-03, 11, 12, "+d1+", "+d2+"\n"
-    data += "2015-04-04, 11, 13, "+d1+", "+d2+"\n"
+    data = []
+    data.push(["day", "id", "value", "dw_created", "dw_updated"])
+    data.push(["2015-04-02", 11, 10, d1, d2])
+    data.push(["2015-04-02", 14, 11, d1, d2])
+    data.push(["2015-04-03", 11, 12, d1, d2])
+    data.push(["2015-04-04", 11, 13, d1, d2])
 
-    upload_string_to_s3(table_name, data)
+    make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:upsert, table_name)
+    job = TestRedshiftLoad1.new(:upsert, table_name, '/tmp/test2.txt')
     job.schema.primary_key = [:day, :id]
     job.batch = batch
     jr = job.run
 
-    result = conn.exec(<<SQL
+    sql =<<SQL
 select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
   , id
   , value
 from #{table_name} 
 order by day, id, value
 SQL
-    )
+    result = conn.exec(sql)
 
     exp_values = [
       ["2015-04-01 00:00:00", "10", "1"],

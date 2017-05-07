@@ -6,7 +6,7 @@ module ETL::Output
 
   # Class that contains shared logic for loading data from S3 to Redshift.
   class Redshift < Base
-    attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table
+    attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table, :csv_file, :key
 
     def initialize(load_strategy, conn_params={}, aws_params={})
       super()
@@ -22,6 +22,9 @@ module ETL::Output
       @conn ||= PG.connect(@conn_params)
     end
 
+    def key 
+      @key ||= dest_table 
+    end
     # Name of the destination table. By default we assume this is the class
     # name but you can override this in the parameters.
     def dest_table
@@ -115,7 +118,22 @@ SQL
       conn.exec(sql)
     end
 
-    def load_fromS3(conn)
+    def upload_to_S3
+      sts = Aws::STS::Client.new(region: @aws_params[:region])
+      session = sts.assume_role(
+        role_arn: @aws_params[:role_arn],
+        role_session_name: "circle-#{key}-upload-s3"
+      )
+      creds = Aws::Credentials.new(
+        session.credentials.access_key_id,
+        session.credentials.secret_access_key,
+        session.credentials.session_token
+      )
+      s3 = Aws::S3::Resource.new(region: @aws_params[:region], credentials: creds)
+      s3.bucket(@bucket).object(key).upload_file(@csv_file)
+    end
+
+    def load_fromS3
       # delete existing rows based on load strategy
       case @load_strategy
       when :update
@@ -197,7 +215,7 @@ SQL
       else
         sql = <<SQL
         COPY #{@dest_table}
-        FROM 's3://#{@bucket}/#{@dest_table}'
+        FROM 's3://#{@bucket}/#{key}'
         IAM_ROLE '#{@aws_params[:role_arn]}'
         DELIMITER ','
         IGNOREHEADER 1
@@ -217,9 +235,12 @@ SQL
       conn.transaction do
         # create destination table if it doesn't exist
         create_table
+       
+        #To-do: load data into S3
+        upload_to_S3
 
         # Load s3 data into destination table
-        load_fromS3(conn)
+        load_fromS3
 
         msg = "Processed #{rows_processed} input rows for #{dest_table}"
       end
