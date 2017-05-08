@@ -6,7 +6,7 @@ module ETL::Output
 
   # Class that contains shared logic for loading data from S3 to Redshift.
   class Redshift < Base
-    attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table, :csv_file, :key
+    attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table, :csv_file
 
     def initialize(load_strategy, conn_params={}, aws_params={})
       super()
@@ -16,15 +16,13 @@ module ETL::Output
       @conn = nil
       @conn_params = conn_params
       @bucket = @aws_params[:s3_bucket]
+      @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
     end
 
     def conn
       @conn ||= PG.connect(@conn_params)
     end
 
-    def key 
-      @key ||= dest_table 
-    end
     # Name of the destination table. By default we assume this is the class
     # name but you can override this in the parameters.
     def dest_table
@@ -32,8 +30,8 @@ module ETL::Output
         ETL::StringUtil::camel_to_snake(ETL::StringUtil::base_class_name(self.class.name))
     end
 
-    def staging_table
-      "staging_"+dest_table
+    def tmp_table
+      dest_table+"_"+@random_key
     end
 
     # Returns the default schema based on the table in the destination db
@@ -92,14 +90,14 @@ SQL
 
     def create_staging_table
       sql = <<SQL
-        CREATE TABLE #{staging_table} (like #{dest_table})
+        CREATE TABLE #{tmp_table} (like #{dest_table})
 SQL
       log.debug(sql)
       conn.exec(sql)
 
       sql =<<SQL
-        COPY #{staging_table}
-        FROM 's3://#{@bucket}/#{dest_table}'
+        COPY #{tmp_table}
+        FROM 's3://#{@bucket}/#{tmp_table}'
         IAM_ROLE '#{@aws_params[:role_arn]}'
         DELIMITER ','
         IGNOREHEADER 1
@@ -112,28 +110,39 @@ SQL
 
     def drop_staging_table
       sql =<<SQL
-     DROP TABLE #{staging_table}
+     DROP TABLE #{tmp_table}
 SQL
       log.debug(sql)
       conn.exec(sql)
     end
 
-    def upload_to_S3
+    def creds
       sts = Aws::STS::Client.new(region: @aws_params[:region])
       session = sts.assume_role(
         role_arn: @aws_params[:role_arn],
-        role_session_name: "circle-#{key}-upload-s3"
+        role_session_name: "circle-#{tmp_table}-upload-s3"
       )
-      creds = Aws::Credentials.new(
+      Aws::Credentials.new(
         session.credentials.access_key_id,
         session.credentials.secret_access_key,
         session.credentials.session_token
       )
-      s3 = Aws::S3::Resource.new(region: @aws_params[:region], credentials: creds)
-      s3.bucket(@bucket).object(key).upload_file(@csv_file)
     end
 
-    def load_fromS3
+    def upload_to_s3
+      s3_resource = Aws::S3::Resource.new(region: @aws_params[:region], credentials: creds)
+      s3_resource.bucket(@bucket).object(tmp_table).upload_file(@csv_file)
+    end
+
+    def delete_object_from_s3
+      s3_client = Aws::S3::Client.new(region: @aws_params[:region], credentials: creds)
+      s3_response = s3_client.delete_object({
+        bucket: @bucket,
+        key: tmp_table
+      })
+    end
+
+    def load_from_s3
       # delete existing rows based on load strategy
       case @load_strategy
       when :update
@@ -169,7 +178,7 @@ SQL
         create_staging_table
 
         sql = <<SQL
-        select * from #{staging_table}
+        select * from #{tmp_table}
 SQL
 
         r = conn.exec(sql)
@@ -177,7 +186,7 @@ SQL
         if @load_strategy == :upsert
           sql = <<SQL
           DELETE FROM #{dest_table}
-          USING #{staging_table} s
+          USING #{tmp_table} s
           WHERE #{pks.collect{ |pk| "#{dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
 SQL
           log.debug(sql)
@@ -185,7 +194,7 @@ SQL
 
           sql = <<SQL
           INSERT INTO #{dest_table}
-          SELECT * FROM #{staging_table}
+          SELECT * FROM #{tmp_table}
 SQL
           log.debug(sql)
           conn.exec(sql)
@@ -201,7 +210,7 @@ SQL
           sql = <<SQL
   update #{dest_table}
   set #{update_cols.collect{ |x| "\"#{x}\" = s.#{x}"}.join(", ")}
-  from #{staging_table} s
+  from #{tmp_table} s
   where #{pks.collect{ |pk| "#{dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
 SQL
 
@@ -215,7 +224,7 @@ SQL
       else
         sql = <<SQL
         COPY #{@dest_table}
-        FROM 's3://#{@bucket}/#{key}'
+        FROM 's3://#{@bucket}/#{tmp_table}'
         IAM_ROLE '#{@aws_params[:role_arn]}'
         DELIMITER ','
         IGNOREHEADER 1
@@ -237,10 +246,13 @@ SQL
         create_table
        
         #To-do: load data into S3
-        upload_to_S3
+        upload_to_s3
 
         # Load s3 data into destination table
-        load_fromS3
+        load_from_s3
+
+        # delete s3 data
+        delete_object_from_s3
 
         msg = "Processed #{rows_processed} input rows for #{dest_table}"
       end

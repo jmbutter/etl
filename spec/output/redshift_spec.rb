@@ -150,8 +150,6 @@ SQL
 
     batch = ETL::Batch.new({ :day => "2015-03-31" })
 
-    #upload_file_to_s3("test_1","#{ETL.root}/spec/data/simple1.csv") 
-
     job = TestRedshiftCreate1.new(table_name)
 
     job.batch = batch
