@@ -1,6 +1,7 @@
 require 'tempfile'
 require 'aws-sdk'
 require 'pg'
+require 'csv'
 
 module ETL::Output
 
@@ -236,9 +237,11 @@ SQL
         create_table
 
         # Load data into temp csv
-        reader.each_row do |row|
-          unless row.nil?
-            @csv_file.write(row.map{|r| "\"#{r}\""}.join(",") + "\n")
+        ::CSV.open(@csv_file.path, "w") do |c|
+          reader.each_row do |row|
+            unless row.nil?
+              c << row
+            end
           end
         end
        
