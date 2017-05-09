@@ -6,9 +6,9 @@ module ETL::Output
 
   # Class that contains shared logic for loading data from S3 to Redshift.
   class Redshift < Base
-    attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table, :csv_file
+    attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table
 
-    def initialize(load_strategy, conn_params={}, aws_params={})
+    def initialize(load_strategy, conn_params={}, aws_params={}, csv_file)
       super()
 
       @aws_params = aws_params
@@ -17,6 +17,7 @@ module ETL::Output
       @conn_params = conn_params
       @bucket = @aws_params[:s3_bucket]
       @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
+      @csv_file = csv_file
     end
 
     def conn
