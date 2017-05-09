@@ -91,7 +91,7 @@ SQL
 
     def create_staging_table
       sql = <<SQL
-        CREATE TABLE #{tmp_table} (like #{dest_table})
+        CREATE TEMP TABLE #{tmp_table} (like #{dest_table})
 SQL
       log.debug(sql)
       conn.exec(sql)
@@ -105,14 +105,6 @@ SQL
         REGION '#{@aws_params[:region]}'
 SQL
 
-      log.debug(sql)
-      conn.exec(sql)
-    end
-
-    def drop_staging_table
-      sql =<<SQL
-     DROP TABLE #{tmp_table}
-SQL
       log.debug(sql)
       conn.exec(sql)
     end
@@ -218,9 +210,6 @@ SQL
           log.debug(sql)
           conn.exec(sql)
         end
-
-        #drop staging table
-        drop_staging_table
 
       else
         sql = <<SQL
