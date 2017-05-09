@@ -8,7 +8,7 @@ module ETL::Output
   class Redshift < Base
     attr_accessor :load_strategy, :conn_params, :aws_params, :dest_table
 
-    def initialize(load_strategy, conn_params={}, aws_params={}, csv_file)
+    def initialize(load_strategy, conn_params={}, aws_params={})
       super()
 
       @aws_params = aws_params
@@ -17,7 +17,7 @@ module ETL::Output
       @conn_params = conn_params
       @bucket = @aws_params[:s3_bucket]
       @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
-      @csv_file = csv_file
+      @csv_file = Tempfile.new(@random_key) 
     end
 
     def conn
@@ -124,7 +124,7 @@ SQL
 
     def upload_to_s3
       s3_resource = Aws::S3::Resource.new(region: @aws_params[:region], credentials: creds)
-      s3_resource.bucket(@bucket).object(tmp_table).upload_file(@csv_file)
+      s3_resource.bucket(@bucket).object(tmp_table).upload_file(@csv_file.path)
     end
 
     def delete_object_from_s3
@@ -234,6 +234,13 @@ SQL
       conn.transaction do
         # create destination table if it doesn't exist
         create_table
+
+        # Load data into temp csv
+        reader.each_row do |row|
+          unless row.nil?
+            @csv_file.write(row.map{|r| "\"#{r}\""}.join(",") + "\n")
+          end
+        end
        
         #To-do: load data into S3
         upload_to_s3
