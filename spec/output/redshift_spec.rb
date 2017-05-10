@@ -10,11 +10,11 @@ end
   
 # Test loading into Redshift
 class TestRedshiftCreate1 < ETL::Output::Redshift
-  def initialize(table_name)
+  def initialize(input, table_name)
     super(:insert_append, rspec_redshift_params, rspec_aws_params) 
     @dest_table = table_name 
-    @csv_file = "#{ETL.root}/spec/data/simple1.csv"
-    @key = table_name 
+    @reader = input
+    #@csv_file = "#{ETL.root}/spec/data/simple1.csv"
 
     define_schema do |s|
       s.int("build_number")
@@ -31,11 +31,10 @@ class TestRedshiftCreate1 < ETL::Output::Redshift
 end
 
 class TestRedshiftLoad1 < ETL::Output::Redshift
-  def initialize(load_strategy, table_name, file)
+  def initialize(input, load_strategy, table_name)
     super(load_strategy, rspec_redshift_params, rspec_aws_params)
     @dest_table = table_name
-    @csv_file = file
-    @key = table_name
+    @reader = input
 
     define_schema do |s|
       s.date(:day)
@@ -150,7 +149,8 @@ SQL
 
     batch = ETL::Batch.new({ :day => "2015-03-31" })
 
-    job = TestRedshiftCreate1.new(table_name)
+    input = ETL::Input::CSV.new("#{ETL.root}/spec/data/simple1.csv")
+    job = TestRedshiftCreate1.new(input, table_name)
 
     job.batch = batch
     jr = job.run
@@ -183,7 +183,8 @@ SQL
     #upload_string_to_s3(table_name, data)
     make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :insert_append, table_name)
 
     job.batch = batch
     jr = job.run
@@ -197,7 +198,8 @@ SQL
 
     make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :insert_append, table_name)
     job.batch = batch
     jr = job.run
 
@@ -237,8 +239,9 @@ SQL
 
     make_csv('/tmp/test2.txt', data)
     batch = ETL::Batch.new({ :day => "2015-04-03" })
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
-    job = TestRedshiftLoad1.new(:insert_table, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :insert_table, table_name)
     job.batch = batch
     jr = job.run
 
@@ -254,7 +257,8 @@ SQL
 
     make_csv('/tmp/test2.txt', data)
 
-    job = TestRedshiftLoad1.new(:insert_table, table_name, '/tmp/test2.txt')
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :insert_table, table_name)
     job.batch = batch
     jr = job.run
 
@@ -291,10 +295,11 @@ SQL
     data.push(["2015-04-03", 12, 3, d1, d2])
 
     make_csv('/tmp/test2.txt', data)
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
     batch = ETL::Batch.new({ :day => "2015-04-02" })
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :insert_append, table_name)
     job.batch = batch
     jr = job.run
 
@@ -307,8 +312,9 @@ SQL
     data.push(["2015-04-05", 12, 6, today, today])
 
     make_csv('/tmp/test2.txt', data)
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
-    job = TestRedshiftLoad1.new(:update, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :update, table_name)
     job.batch = batch
     jr = job.run
 
@@ -348,8 +354,9 @@ SQL
     data.push(["2015-04-03", 12, 3, d1, d2])
 
     make_csv('/tmp/test2.txt', data)
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
-    job = TestRedshiftLoad1.new(:insert_append, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :insert_append, table_name)
     job.batch = batch
     jr = job.run
 
@@ -362,8 +369,9 @@ SQL
     data.push(["2015-04-05", 12, 6, today, today])
 
     make_csv('/tmp/test2.txt', data)
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
-    job = TestRedshiftLoad1.new(:upsert, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :upsert, table_name)
     job.batch = batch
     jr = job.run
 
@@ -407,8 +415,9 @@ SQL
     data.push(["2015-04-03", 10, 6, d1, d2])
 
     make_csv('/tmp/test2.txt', data)
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
-    job = TestRedshiftLoad1.new(:upsert, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :upsert, table_name)
     job.schema.primary_key = [:day, :id]
     job.batch = batch
     jr = job.run
@@ -421,8 +430,9 @@ SQL
     data.push(["2015-04-04", 11, 13, d1, d2])
 
     make_csv('/tmp/test2.txt', data)
+    input = ETL::Input::CSV.new('/tmp/test2.txt')
 
-    job = TestRedshiftLoad1.new(:upsert, table_name, '/tmp/test2.txt')
+    job = TestRedshiftLoad1.new(input, :upsert, table_name)
     job.schema.primary_key = [:day, :id]
     job.batch = batch
     jr = job.run

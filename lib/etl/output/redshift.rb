@@ -18,7 +18,7 @@ module ETL::Output
       @conn_params = conn_params
       @bucket = @aws_params[:s3_bucket]
       @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
-      @csv_file = Tempfile.new(@random_key) 
+      @csv_file = Tempfile.new(dest_table) 
     end
 
     def conn
@@ -239,9 +239,7 @@ SQL
         # Load data into temp csv
         ::CSV.open(@csv_file.path, "w") do |c|
           reader.each_row do |row|
-            unless row.nil?
-              c << row
-            end
+            c << row.values unless row.nil?
           end
         end
        
