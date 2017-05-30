@@ -1,4 +1,5 @@
 require 'etl/util/influxdb_conn'
+require 'etl/query/sequel'
 
 module ETL::Input
 
@@ -11,15 +12,15 @@ module ETL::Input
   # Client lib: https://github.com/influxdata/influxdb-ruby
     include ETL::InfluxdbConn
     
-    attr_accessor :iql, :params
+    attr_accessor :params
 
-    def initialize(params, select, series, where = nil, group_by = nil, limit = nil, iql = nil, last_stamp = nil, measurement = nil)
+    def initialize(params, select, series, where = nil, group_by = nil, limit = nil, last_stamp = nil, measurement = nil)
       super()
       @select = select
       @series = series
+      @where = where 
       @group_by = group_by
       @limit = limit
-      @iql = iql
       @conn = nil
       @params = params
       @measurement = measurement
@@ -31,8 +32,8 @@ module ETL::Input
       @last_stamp ||= first_timestamp
     end
 
-    def limitation
-      10000
+    def limit
+      @limit ||= 10000
     end
 
     def first_timestamp 
@@ -69,32 +70,25 @@ EOS
       # XXX for now this is all going into memory before we can iterate it.
       # It would be nice to switch this to streaming REST call. 
 
-      # To-do: get all data with pagination
-      # First query: iql = iql + limit #{limitation}
-      # From second query: iql = iql + limit #{limitation} OFFSET #{imitation}
-      # Continue until no data left
-      
-
       start_date = 
-        if last_stamp.class == String
+        if last_stamp.is_a?(String)
           Time.parse(last_stamp)
         else
           last_stamp
         end
 
-      query_sql = ETL::Query::Sequel.new(@select, @series, @where, @group_by, @limit)
+      query_sql = ETL::Query::Sequel.new(@select, @series, @where, @group_by, limit)
 
       @rows_processed = 0
-      rows_count = limitation
+      rows_count = limit
 
       while start_date < @today do
+        query_sql.append_replacable_where(time_range(start_date))
         rows = with_retry { conn.query(query_sql.query, denormalize: false) } || [].each
-        log.debug("Executing InfluxDB query #{query}")
+        log.debug("Executing InfluxDB query #{query_sql.query}")
 
-=begin
         rows_count = 0
         rows.each do |row_in|
-        
           # use the same set of tags for each value set
           tag_row = row_in["tags"] || {}
           
@@ -124,53 +118,16 @@ EOS
             rows_count += 1
           end
         end
-=end
-        rows_count = transform_rows(rows)
+
         @rows_processed += rows_count
 
-        if rows_count < limitation
+        if rows_count < limit
           start_date += 60*60*24 
-          query_sql.append_replacable_where = time_range(start_date)
           query_sql.offset = nil
         else
-          query_sql.append_replacable_where = time_range(start_date)
-          query_sql.offset = limitation 
+          query_sql.offset = limit
         end
       end
-    end
-
-    def transform_rows(rows)
-      rows.each do |row_in|
-        # use the same set of tags for each value set
-        tag_row = row_in["tags"] || {}
-          
-        # do we have a bunch of values to go with these tags?
-        if row_in["values"]
-          # iterate over all the value sets
-          row_in["values"].each do |va|
-            # each value set should zip up to same number of items as the 
-            # column labels we got back
-            if va.count != row_in["columns"].count
-              raise "# of columns (#{row_in["columns"]}) does not match values (#{row_in["values"]})" 
-            end
-              
-            # build our row by combining tags and value columns. note that if
-            # they are named the same then tags will get overwritten
-            row = tag_row.merge(Hash[row_in["columns"].zip(va)])
-            
-            # boilerplate processing
-            transform_row!(row)
-            yield row
-            rows_count += 1
-          end
-        else
-          # no values? kinda weird, but process it anyway
-          transform_row!(tag_row)
-          yield tag_row
-          rows_count += 1
-        end
-      end
-      rows_count
     end
   end
 end

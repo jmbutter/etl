@@ -17,7 +17,11 @@ module ETL::Query
     def query
       where = 
         if @where.nil?
-          ""
+          if defined? @tmp_where && !@tmp_where.nil?
+            "WHERE #{@tmp_where}"
+          else
+            ""
+          end
         else
           if defined? @tmp_where && !@tmp_where.nil?
             "WHERE #{@where} AND #{@tmp_where}"
