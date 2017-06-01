@@ -14,17 +14,17 @@ module ETL::Input
     
     attr_accessor :params
 
-    def initialize(params, select, series, where = nil, group_by = nil, limit = nil, last_stamp = nil)
+    def initialize(params, select, series, **keyword_args) 
       super()
       @select = select
       @series = series
-      @where = where 
-      @group_by = group_by
-      @limit = limit
+      @where = keyword_args[:where] if keyword_args.include?(:where)
+      @group_by = keyword_args[:group_by] if keyword_args.include?(:group_by)
+      @limit = keyword_args[:limit] if keyword_args.include?(:limit) 
       @conn = nil
       @params = params
       @today = Time.now.getutc
-      @last_stamp = last_stamp 
+      @last_stamp = keyword_args[:last_stamp] if keyword_args.include?(:last_stamp) 
     end
 
     def last_stamp
