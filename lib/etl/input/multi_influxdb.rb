@@ -35,8 +35,8 @@ module ETL::Input
       @limit ||= 10000
     end
 
-    def data_schema
-      @data_schema ||= get_data_schema
+    def schema_map
+      @schema_map ||= get_schema_map
     end
 
     def field_keys 
@@ -47,9 +47,9 @@ module ETL::Input
       @tag_keys ||= get_tag_keys
     end
 
-    def get_data_schema 
-      schema = @field_keys
-      @tag_keys.each do |tag|
+    def get_schema_map
+      schema = field_keys
+      tag_keys.each do |tag|
         schema[tag.to_sym] = :string if !schema.keys.include?(tag.to_sym)
       end
       {:time => :date}.merge(schema)
@@ -61,8 +61,9 @@ module ETL::Input
 EOS
       log.debug("Executing InfluxDB query #{query}")
       row = with_retry { conn.query(query, denormalize: false) } || []
+      h = Hash.new
       if !row.nil? && row[0]["columns"] && row[0]["values"]
-        return Hash.new{ |h,k| h[k]="" }.tap{ |h| row[0]["values"].each{ |k,v| h[k.to_sym] << v.to_sym } }
+        row[0]["values"].each{ |k,v| h[k.to_sym] = v.to_sym }
       end
       {}
     end
