@@ -152,48 +152,48 @@ RSpec.describe "sequel query" do
   	expect { sequel_query.append_where("ten") }.to raise_error("Parameter is not Array")
   end
 
-  it "append_replacable_where - array of a string without where" do
+  it "append_replaceable_where - array of a string without where" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
 
-  	sequel_query.append_replacable_where(["whe = whe"])
+  	sequel_query.append_replaceable_where(["whe = whe"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe")
 
-  	sequel_query.append_replacable_where(["next = next"])
+  	sequel_query.append_replaceable_where(["next = next"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE next = next")
   end
 
-  it "append_replacable_where - array of several strings without where" do
+  it "append_replaceable_where - array of several strings without where" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
 
-  	sequel_query.append_replacable_where(["whe = whe", "re < er"])
+  	sequel_query.append_replaceable_where(["whe = whe", "re < er"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe AND re < er")
 
-  	sequel_query.append_replacable_where(["nextwhe = nextwhe", "nextre < nexter"])
+  	sequel_query.append_replaceable_where(["nextwhe = nextwhe", "nextre < nexter"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE nextwhe = nextwhe AND nextre < nexter")
   end
 
-  it "append_replacable_where - array of a string with where" do
+  it "append_replaceable_where - array of a string with where" do
   	sequel_query = ETL::Query::Sequel.new(select, from, ["where is where"], group_by, limit)
 
-  	sequel_query.append_replacable_where(["whe = whe"])
+  	sequel_query.append_replaceable_where(["whe = whe"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND whe = whe")
 
-  	sequel_query.append_replacable_where(["next = next"])
+  	sequel_query.append_replaceable_where(["next = next"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND next = next")
   end
 
-  it "append_replacable_where - array of several strings with where" do
+  it "append_replaceable_where - array of several strings with where" do
   	sequel_query = ETL::Query::Sequel.new(select, from, ["where is where"], group_by, limit)
 
-  	sequel_query.append_replacable_where(["whe = whe", "re < er"])
+  	sequel_query.append_replaceable_where(["whe = whe", "re < er"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND whe = whe AND re < er")
 
-  	sequel_query.append_replacable_where(["nextwhe = nextwhe", "nextre < nexter"])
+  	sequel_query.append_replaceable_where(["nextwhe = nextwhe", "nextre < nexter"])
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND nextwhe = nextwhe AND nextre < nexter")
   end
 
-  it "append_replacable_where - not array" do
+  it "append_replaceable_where - not array" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-  	expect { sequel_query.append_replacable_where("ten") }.to raise_error("Parameter is not Array")
+  	expect { sequel_query.append_replaceable_where("ten") }.to raise_error("Parameter is not Array")
   end
 end

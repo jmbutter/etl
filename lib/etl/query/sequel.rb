@@ -102,7 +102,7 @@ module ETL::Query
     end
 
     # parameter should be array
-    def append_replacable_where(where)
+    def append_replaceable_where(where)
       raise "Parameter is not Array" if !where.is_a?(Array)
       @tmp_where = where 
     end

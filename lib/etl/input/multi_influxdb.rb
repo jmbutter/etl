@@ -101,7 +101,7 @@ EOS
       rows_count = limit
 
       while start_date < @today do
-        query_sql.append_replacable_where(time_range(start_date))
+        query_sql.append_replaceable_where(time_range(start_date))
         rows = with_retry { conn.query(query_sql.query, denormalize: false) } || [].each
         log.debug("Executing InfluxDB query #{query_sql.query}")
 
