@@ -20,7 +20,7 @@ module ETL::Input
       @series = series
       @where = keyword_args[:where] if keyword_args.include?(:where)
       @group_by = keyword_args[:group_by] if keyword_args.include?(:group_by)
-      @limit = keyword_args[:limit] if keyword_args.include?(:limit) 
+      @limit = keyword_args[:limit] if keyword_args.include?(:limit)
       @conn = nil
       @params = params
       @today = Time.now.getutc
@@ -62,10 +62,10 @@ EOS
       log.debug("Executing InfluxDB query #{query}")
       row = with_retry { conn.query(query, denormalize: false) } || []
       h = Hash.new
-      if !row.nil? && row[0]["columns"] && row[0]["values"]
+      if !row.nil? && row[0]["values"]
         row[0]["values"].each{ |k,v| h[k.to_sym] = v.to_sym }
       end
-      {}
+      h
     end
 
     def get_tag_keys 
