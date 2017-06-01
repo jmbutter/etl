@@ -4,10 +4,12 @@ RSpec.describe "sequel query" do
 
   let(:select) { ["foo"] }
   let(:from) { "bar" }
-  let(:where) { [] }
+  let(:where) { "" }
   let(:group_by) { [] }
   let(:limit) { nil }
   let(:offset) { nil }
+  let(:tmp_where) { "foo = foobar" }
+  let(:tmp_appendwhere) { "foo != bar" }
 
   it "select - not array" do
     expect { ETL::Query::Sequel.new("foo", from, where, group_by, limit) }.to raise_error("Select is not array")
@@ -44,22 +46,17 @@ RSpec.describe "sequel query" do
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from}")
   end
 
-  it "where - not array" do
-    expect { ETL::Query::Sequel.new(select, from, "", group_by, limit) }.to raise_error("Where is not array")
+  it "where - not string" do
+    expect { ETL::Query::Sequel.new(select, from, [], group_by, limit) }.to raise_error("Where is not string")
   end
 
-  it "where - array of several strings" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, ["whe = whe", "re < er"], group_by, limit)
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe AND re < er")
-  end
-
-  it "where - array of an empty string" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, [""], group_by, limit)
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from}")
+  it "where - string" do
+  	sequel_query = ETL::Query::Sequel.new(select, from, tmp_where, group_by, limit)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{tmp_where}")
   end
 
   it "where - array of several empty strings" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, ["", "", ""], group_by, limit)
+  	sequel_query = ETL::Query::Sequel.new(select, from, "", group_by, limit)
   	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from}")
   end
 
@@ -93,7 +90,7 @@ RSpec.describe "sequel query" do
   end
 
   it "limit - not int" do
-  	expect { ETL::Query::Sequel.new(select, from, where, group_by, "one") }.to raise_error("Limit is not Integer")
+  	expect { ETL::Query::Sequel.new(select, from, where, group_by, "one") }.to raise_error("Limit is not integer")
   end
 
   it "offset - int without limit" do
@@ -120,80 +117,63 @@ RSpec.describe "sequel query" do
 
   it "offset - not int" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-  	expect { sequel_query.set_offset("ten") }.to raise_error("Parameter is not Integer")
+  	expect { sequel_query.set_offset("ten") }.to raise_error("Parameter is not integer")
   end
 
-  it "append_where - array of a string without where" do
+  it "append_where - string without where" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-  	sequel_query.append_where(["whe = whe"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe")
+  	sequel_query.append_where(tmp_appendwhere)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{tmp_appendwhere}")
   end
 
-  it "append_where - array of several strings without where" do
+  it "append_where - string with where and default operator" do
+  	sequel_query = ETL::Query::Sequel.new(select, from, tmp_where, group_by, limit)
+  	sequel_query.append_where(tmp_appendwhere)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{tmp_where} AND #{tmp_appendwhere}")
+  end
+
+  it "append_where - string with where and valid operator" do
+  	sequel_query = ETL::Query::Sequel.new(select, from, tmp_where, group_by, limit)
+  	sequel_query.append_where(tmp_appendwhere, :OR)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{tmp_where} OR #{tmp_appendwhere}")
+  end
+
+  it "append_where - invalid operator" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-  	sequel_query.append_where(["whe = whe", "re < er"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe AND re < er")
+  	expect { sequel_query.append_where(tmp_appendwhere, "operator") }.to raise_error("Invalid operator: operator")
   end
 
-  it "append_where - array of a string with where" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, ["where is where"], group_by, limit)
-  	sequel_query.append_where(["whe = whe"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND whe = whe")
-  end
-
-  it "append_where - array of several strings with where" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, ["where is where"], group_by, limit)
-  	sequel_query.append_where(["whe = whe", "re < er"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND whe = whe AND re < er")
-  end
-
-  it "append_where - not array" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-  	expect { sequel_query.append_where("ten") }.to raise_error("Parameter is not Array")
-  end
-
-  it "append_replaceable_where - array of a string without where" do
+  it "append_replaceable_where - a string without where" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
 
-  	sequel_query.append_replaceable_where(["whe = whe"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe")
+  	sequel_query.append_replaceable_where(tmp_where)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{tmp_where}")
 
-  	sequel_query.append_replaceable_where(["next = next"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE next = next")
+  	sequel_query.append_replaceable_where(tmp_appendwhere)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{tmp_appendwhere}")
   end
 
-  it "append_replaceable_where - array of several strings without where" do
+  it "append_replaceable_where - string with where" do
+  	w = "bar = bar"
+  	sequel_query = ETL::Query::Sequel.new(select, from, w, group_by, limit)
+
+  	sequel_query.append_replaceable_where(tmp_where)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{w} AND #{tmp_where}")
+
+  	sequel_query.append_replaceable_where(tmp_appendwhere)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{w} AND #{tmp_appendwhere}")
+
+  	sequel_query.append_replaceable_where(tmp_where, :OR)
+  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE #{w} OR #{tmp_where}")
+  end
+
+  it "append_replaceable_where - not string" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-
-  	sequel_query.append_replaceable_where(["whe = whe", "re < er"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE whe = whe AND re < er")
-
-  	sequel_query.append_replaceable_where(["nextwhe = nextwhe", "nextre < nexter"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE nextwhe = nextwhe AND nextre < nexter")
+  	expect { sequel_query.append_replaceable_where([tmp_appendwhere]) }.to raise_error("Parameter is not string")
   end
 
-  it "append_replaceable_where - array of a string with where" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, ["where is where"], group_by, limit)
-
-  	sequel_query.append_replaceable_where(["whe = whe"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND whe = whe")
-
-  	sequel_query.append_replaceable_where(["next = next"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND next = next")
-  end
-
-  it "append_replaceable_where - array of several strings with where" do
-  	sequel_query = ETL::Query::Sequel.new(select, from, ["where is where"], group_by, limit)
-
-  	sequel_query.append_replaceable_where(["whe = whe", "re < er"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND whe = whe AND re < er")
-
-  	sequel_query.append_replaceable_where(["nextwhe = nextwhe", "nextre < nexter"])
-  	expect( sequel_query.query ).to eq("SELECT #{select[0]} FROM #{from} WHERE where is where AND nextwhe = nextwhe AND nextre < nexter")
-  end
-
-  it "append_replaceable_where - not array" do
+  it "append_replaceable_where - invalid operator" do
   	sequel_query = ETL::Query::Sequel.new(select, from, where, group_by, limit)
-  	expect { sequel_query.append_replaceable_where("ten") }.to raise_error("Parameter is not Array")
+  	expect { sequel_query.append_replaceable_where(tmp_appendwhere, "operator") }.to raise_error("Invalid operator: operator")
   end
 end
