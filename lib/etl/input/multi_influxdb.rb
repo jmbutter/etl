@@ -76,7 +76,7 @@ EOS
     def time_range(start_date)
       from_date = (start_date).to_s[0..18].gsub("T", " ")
       to_date = (start_date + (60*60*24)).to_s[0..18].gsub("T", " ")
-      "time > '#{from_date}' AND time < '#{to_date}'"
+      ["time > '#{from_date}'", "time < '#{to_date}'"]
     end
         
     # Reads each row from the query and passes it to the specified block.
