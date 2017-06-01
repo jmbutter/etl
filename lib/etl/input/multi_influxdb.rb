@@ -14,7 +14,7 @@ module ETL::Input
     
     attr_accessor :params
 
-    def initialize(params, select, series, where = nil, group_by = nil, limit = nil, last_stamp = nil, measurement = nil)
+    def initialize(params, select, series, where = nil, group_by = nil, limit = nil, last_stamp = nil)
       super()
       @select = select
       @series = series
@@ -23,7 +23,6 @@ module ETL::Input
       @limit = limit
       @conn = nil
       @params = params
-      @measurement = measurement
       @today = Time.now.getutc
       @last_stamp = last_stamp 
     end
@@ -36,16 +35,35 @@ module ETL::Input
       @limit ||= 10000
     end
 
-    def first_timestamp 
+    def field_keys 
+      @field_keys ||= get_field_keys
+    end
+
+    def get_field_keys 
       query = <<-EOS
-        select first(#{@measurement}) from #{@series}
+        show field keys from #{@series}
 EOS
       log.debug("Executing InfluxDB query #{query}")
       row = with_retry { conn.query(query, denormalize: false) } || []
-
       if !row.nil? && row[0]["columns"] && row[0]["values"]
-        h = Hash[row[0]["columns"].zip(row[0]["values"][0])]
-        return Time.parse(h["time"])
+        return Hash.new{ |h,k| h[k]="" }.tap{ |h| row[0]["values"].each{ |k,v| h[k.to_sym] << v } }
+      end
+      {}
+    end
+
+    def first_timestamp 
+      if !field_keys.empty?
+        measurement = field_keys.keys[0].to_s
+        query = <<-EOS
+          select first(#{@measurement}) from #{@series}
+EOS
+        log.debug("Executing InfluxDB query #{query}")
+        row = with_retry { conn.query(query, denormalize: false) } || []
+
+        if !row.nil? && row[0]["columns"] && row[0]["values"]
+          h = Hash[row[0]["columns"].zip(row[0]["values"][0])]
+          return Time.parse(h["time"])
+        end
       end
       @today - 60*60*24*100
     end
