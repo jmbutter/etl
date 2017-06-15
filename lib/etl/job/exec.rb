@@ -1,3 +1,5 @@
+require 'slack-notifier'
+
 module ETL::Job
 
   # Class that runs jobs given a payload
@@ -10,6 +12,18 @@ module ETL::Job
         retry_wait: 4,
         retry_mult: 2.0,
       }.merge(params)
+
+      @notifier ||= begin 
+        if ETL.config.core[:slack]
+          slack_config = ETL.config.core[:slack]
+          if slack_config[:webhook_url] && slack_config[:channel]
+            Slack::Notifier.new slack_config[:webhook_url] do
+              defaults channel: slack_config[:channel],
+                username: "#{@payload.job_id}"
+            end
+          end
+        end
+      end
     end
 
     # Run the job for this object's payload and handles any immediate retries.
@@ -30,8 +44,17 @@ module ETL::Job
       # change status to running
       jr.running()
       begin
+        @notifier.ping "#{@payload.job_id} starts running" unless @notifier.nil?
         result = job.run()
         jr.success(result)
+        if !@notifier.nil?
+          message = if jr.success?
+                      "succeeded"
+                    else
+                      "failed"
+                    end
+          @notifier.ping "#{@payload.job_id} #{message}" 
+        end
         measurements[:rows_processed] = result.rows_processed
 
       rescue Sequel::DatabaseError => ex
