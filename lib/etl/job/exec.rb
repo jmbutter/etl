@@ -16,10 +16,10 @@ module ETL::Job
       @notifier ||= begin 
         if ETL.config.core[:slack]
           slack_config = ETL.config.core[:slack]
-          if slack_config[:webhook_url] && slack_config[:channel]
-            Slack::Notifier.new slack_config[:webhook_url] do
+          if slack_config[:url] && slack_config[:channel] && slack_config[:username]
+            Slack::Notifier.new slack_config[:url] do
               defaults channel: slack_config[:channel],
-                username: "#{@payload.job_id}"
+                username: slack_config[:username] 
             end
           end
         end
