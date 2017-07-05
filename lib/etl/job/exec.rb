@@ -82,16 +82,16 @@ module ETL::Job
         
         # we aren't retrying anymore - log this error
         jr.exception(ex)
-        @notifier.add_field_to_attachments({ "title" : "Error message", "value" : "DatabaseError #{ex}"}) unless @notifier.nil?
+        @notifier.add_field_to_attachments({ "title" => "Error message", "value" => "DatabaseError #{ex}"}) unless @notifier.nil?
       rescue StandardError => ex
         # for all other exceptions: save the message
         jr.exception(ex)
-        @notifier.add_text_to_attachments({ "title" : "Error message", "value" : "#{ex}"}) unless @notifier.nil?
+        @notifier.add_text_to_attachments({ "title" => "Error message", "value" => "#{ex}"}) unless @notifier.nil?
       end
 
-      @notifier.add_field_to_attachments({ "title" : "Job duration", "value" : "#{jr.ended_at - jr.started_at}"}) unless @notifier.nil?
+      @notifier.add_field_to_attachments({ "title" => "Job duration", "value" => "#{jr.ended_at - jr.started_at}"}) unless @notifier.nil?
       @notifier.notify("#{@payload.job_id} summary")
-      
+
       metrics.point(
         measurements.merge(
           job_time_secs: (jr.ended_at - jr.started_at),
