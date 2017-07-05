@@ -44,14 +44,13 @@ module ETL::Job
         result = job.run()
         jr.success(result)
         if !@notifier.nil?
-          message = if jr.success?
-                      "succeeded"
-                    else
-                      "failed"
-                    end 
-
-          @notifier.add_text_to_attachments("#{message}")
+          if jr.success?
+            @notifier.add_text_to_attachments("Status: success\n #{result.rows_processed} rows processed")
+          else
+            @notifier.add_text_to_attachments("Status: failure")
+          end 
         end
+        
         measurements[:rows_processed] = result.rows_processed
 
       rescue Sequel::DatabaseError => ex
@@ -87,7 +86,8 @@ module ETL::Job
         @notifier.add_text_to_attachments("failed: #{ex}") unless @notifier.nil?
       end
 
-      @notifier.notify("test message")
+      @notifier.add_text_to_attachments("Job duration: #{jr.ended_at - jr.started_at}") unless @notifier.nil?
+      @notifier.notify("#{@payload.batch_hash}")
       metrics.point(
         measurements.merge(
           job_time_secs: (jr.ended_at - jr.started_at),
