@@ -40,7 +40,7 @@ module ETL::Job
       # change status to running
       jr.running()
       begin
-        @notifier.notify("Starts running") unless @notifier.nil?
+        @notifier.add_text_to_attachments("Starts running") unless @notifier.nil?
         result = job.run()
         jr.success(result)
         if !@notifier.nil?
@@ -48,8 +48,9 @@ module ETL::Job
                       "succeeded"
                     else
                       "failed"
-                    end
-          @notifier.notify("#{message}")
+                    end 
+
+          @notifier.add_text_to_attachments("#{message}")
         end
         measurements[:rows_processed] = result.rows_processed
 
@@ -79,13 +80,14 @@ module ETL::Job
         
         # we aren't retrying anymore - log this error
         jr.exception(ex)
-        @notifier.notify("failed: DatabaseError #{ex}") unless @notifier.nil?
+        @notifier.add_text_to_attachments("failed: DatabaseError #{ex}") unless @notifier.nil?
       rescue StandardError => ex
         # for all other exceptions: save the message
         jr.exception(ex)
-        @notifier.notify("failed: #{ex}") unless @notifier.nil?
+        @notifier.add_text_to_attachments("failed: #{ex}") unless @notifier.nil?
       end
 
+      @notifier.notify("")
       metrics.point(
         measurements.merge(
           job_time_secs: (jr.ended_at - jr.started_at),
