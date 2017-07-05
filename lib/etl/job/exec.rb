@@ -46,7 +46,7 @@ module ETL::Job
         if !@notifier.nil?
           if jr.success?
             @notifier.set_color("#36a64f") 
-            @notifier.add_text_to_attachments("*# Processed rows*: #{result.rows_processed}"})
+            @notifier.add_text_to_attachments("*# Processed rows*: #{result.rows_processed}")
           else
             @notifier.set_color("#ff0000") 
           end 
