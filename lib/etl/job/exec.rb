@@ -40,17 +40,19 @@ module ETL::Job
       # change status to running
       jr.running()
       begin
-        @notifier.add_text_to_attachments("Starts running") unless @notifier.nil?
+        @notifier.add_text_to_attachments("Starts running at #{Time.now.getutc}") unless @notifier.nil?
         result = job.run()
         jr.success(result)
         if !@notifier.nil?
           if jr.success?
+            @notifier.set_color("green") 
             @notifier.add_text_to_attachments("Status: success\n #{result.rows_processed} rows processed")
           else
+            @notifier.set_color("red") 
             @notifier.add_text_to_attachments("Status: failure")
           end 
         end
-        
+
         measurements[:rows_processed] = result.rows_processed
 
       rescue Sequel::DatabaseError => ex
@@ -87,7 +89,7 @@ module ETL::Job
       end
 
       @notifier.add_text_to_attachments("Job duration: #{jr.ended_at - jr.started_at}") unless @notifier.nil?
-      @notifier.notify("#{@payload.batch_hash}")
+      @notifier.notify("#{@payload.job_id} summary")
       metrics.point(
         measurements.merge(
           job_time_secs: (jr.ended_at - jr.started_at),

@@ -11,6 +11,14 @@ module ETL::Slack
     def notify(message, icon_emoji: ":beetle:", attachments: @attachments)
       @notifier.ping message, icon_emoji: icon_emoji, attachments: attachments
     end
+    
+    def set_color(color)
+      if @attachments.empty?
+        @attachments = [{ "color": color }] 
+      else
+        @attachments[0][:color] = color 
+      end
+    end
 
     def add_text_to_attachments(txt) 
       if @attachments.empty?
