@@ -87,7 +87,7 @@ module ETL::Job
         @notifier.add_text_to_attachments("failed: #{ex}") unless @notifier.nil?
       end
 
-      @notifier.notify("")
+      @notifier.notify("test message")
       metrics.point(
         measurements.merge(
           job_time_secs: (jr.ended_at - jr.started_at),
