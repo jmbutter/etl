@@ -40,16 +40,17 @@ module ETL::Job
       # change status to running
       jr.running()
       begin
-        @notifier.add_text_to_attachments("Starts running at #{Time.now.getutc}") unless @notifier.nil?
+        @notifier.notify("Starts running") unless @notifier.nil?
         result = job.run()
         jr.success(result)
         if !@notifier.nil?
           if jr.success?
-            @notifier.set_color("green") 
-            @notifier.add_text_to_attachments("Status: success\n #{result.rows_processed} rows processed")
+            @notifier.set_color("#36a64f") 
+            @notifier.add_field_to_attachments({"title": "Status", "value": "Success"})
+            @notifier.add_field_to_attachments({"title": "# Processed rows", "value": "#{result.rows_processed}"})
           else
-            @notifier.set_color("red") 
-            @notifier.add_text_to_attachments("Status: failure")
+            @notifier.set_color("#ff0000") 
+            @notifier.add_field_to_attachments({"title": "Status", "value": "Failure"})
           end 
         end
 
@@ -81,15 +82,16 @@ module ETL::Job
         
         # we aren't retrying anymore - log this error
         jr.exception(ex)
-        @notifier.add_text_to_attachments("failed: DatabaseError #{ex}") unless @notifier.nil?
+        @notifier.add_field_to_attachments({ "title" : "Error message", "value" : "DatabaseError #{ex}"}) unless @notifier.nil?
       rescue StandardError => ex
         # for all other exceptions: save the message
         jr.exception(ex)
-        @notifier.add_text_to_attachments("failed: #{ex}") unless @notifier.nil?
+        @notifier.add_text_to_attachments({ "title" : "Error message", "value" : "#{ex}"}) unless @notifier.nil?
       end
 
-      @notifier.add_text_to_attachments("Job duration: #{jr.ended_at - jr.started_at}") unless @notifier.nil?
+      @notifier.add_field_to_attachments({ "title" : "Job duration", "value" : "#{jr.ended_at - jr.started_at}"}) unless @notifier.nil?
       @notifier.notify("#{@payload.job_id} summary")
+      
       metrics.point(
         measurements.merge(
           job_time_secs: (jr.ended_at - jr.started_at),

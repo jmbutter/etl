@@ -31,5 +31,17 @@ module ETL::Slack
         end
       end
     end
+
+    def add_field_to_attachments(field)
+      if @attachments.empty?
+        @attachments = [{ "fields": [ field ] }] 
+      else
+        if @attachments[0].include? :fields
+          @attachments[0][:fields].push(field)
+        else
+          @attachments[0][:fields] = [field]
+        end
+      end
+    end
   end
 end
