@@ -46,11 +46,9 @@ module ETL::Job
         if !@notifier.nil?
           if jr.success?
             @notifier.set_color("#36a64f") 
-            @notifier.add_field_to_attachments({"title": "Status", "value": "Success"})
-            @notifier.add_field_to_attachments({"title": "# Processed rows", "value": "#{result.rows_processed}"})
+            @notifier.add_text_to_attachments("*# Processed rows*: #{result.rows_processed}"})
           else
             @notifier.set_color("#ff0000") 
-            @notifier.add_field_to_attachments({"title": "Status", "value": "Failure"})
           end 
         end
 
@@ -89,7 +87,7 @@ module ETL::Job
         @notifier.add_text_to_attachments({ "title" => "Error message", "value" => "#{ex}"}) unless @notifier.nil?
       end
 
-      @notifier.add_field_to_attachments({ "title" => "Job duration", "value" => "#{jr.ended_at - jr.started_at}"}) unless @notifier.nil?
+      @notifier.add_text_to_attachments("*Job duration*: #{jr.ended_at - jr.started_at}") unless @notifier.nil?
       @notifier.notify("#{@payload.job_id} summary")
 
       metrics.point(
