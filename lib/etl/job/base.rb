@@ -14,8 +14,8 @@ module ETL::Job
       @notifier ||= begin 
         if ETL.config.core[:slack]
           slack_config = ETL.config.core[:slack]
-          if slack_config[:url] && slack_config[:channel] && @payload.job_id 
-            ETL::Slack::Notifier.new(slack_config[:url], slack_config[:channel], @payload.job_id)
+          if slack_config[:url] && slack_config[:channel] && id 
+            ETL::Slack::Notifier.new(slack_config[:url], slack_config[:channel], id)
           end
         end
       end
@@ -35,10 +35,7 @@ module ETL::Job
       inp = input
       inp.log = log
       log.debug("Input: #{inp.name}")
-      if @notifier && inp.instance_variable_defined?(:@last_stamp) && inp.instance_variable_defined?(:@today)
-        @notifier.add_text_to_attachments("# Start Time: #{inp.last_stamp}")
-        @notifier.add_text_to_attachments("# End Time: #{inp.today}")
-      end
+      inp.ATTRSLACK.map { |atr| @notifier.add_text_to_attachments("# #{atr.to_s}: #{send(atr)}") } if @notifier
       
       # set up our output object
       out = output

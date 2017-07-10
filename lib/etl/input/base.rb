@@ -3,7 +3,8 @@ require 'mixins/cached_logger'
 module ETL::Input
   class Base
     include ETL::CachedLogger
-    attr_accessor :rows_processed, :row_transform, :col_transforms
+    ATTRSLACK = []
+    attr_accessor :rows_processed, :row_transform, :col_transforms, *ATTRSLACK
 
     def initialize
       @rows_processed = 0

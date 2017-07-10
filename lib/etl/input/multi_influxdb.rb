@@ -12,8 +12,8 @@ module ETL::Input
   # Client lib: https://github.com/influxdata/influxdb-ruby
     include ETL::InfluxdbConn
     
+    ATTRSLACK = [:input_start_time, :input_end_time]
     attr_accessor :params
-    attr_reader :last_stamp, :today
 
     # start_date : integer representing # days we gonna go back (default is 30)
     # time_interval : integer representing seconds (default is 1d (60*60*24))
@@ -25,7 +25,7 @@ module ETL::Input
       @where = keyword_args[:where] if keyword_args.include?(:where)
       @group_by = keyword_args[:group_by] if keyword_args.include?(:group_by)
       @limit = keyword_args[:limit] if keyword_args.include?(:limit)
-      @last_stamp = keyword_args[:last_stamp] if keyword_args.include?(:last_stamp) 
+      @input_start_time = keyword_args[:last_stamp] if keyword_args.include?(:last_stamp) 
       @time_interval = if keyword_args.include?(:time_interval) 
                          keyword_args[:time_interval]
                        else
@@ -44,15 +44,15 @@ module ETL::Input
                          0
                        end
       @conn = nil
-      @today = if keyword_args.include?(:today)
+      @input_end_time = if keyword_args.include?(:today)
                  keyword_args[:today] 
                else
                  Time.now.getutc
                end 
     end
 
-    def last_stamp
-      @last_stamp ||= first_timestamp
+    def input_start_time
+      @input_start_time ||= first_timestamp
     end
 
     def limit
@@ -116,12 +116,12 @@ EOS
         if !row.nil? && row[0]["columns"] && row[0]["values"]
           h = Hash[row[0]["columns"].zip(row[0]["values"][0])]
           oldest_date = Time.parse(h["time"])
-          if ( @today - oldest_date ) <= 60*60*24*@backfill_days
+          if ( @input_end_time - oldest_date ) <= 60*60*24*@backfill_days
             return oldest_date
           end
         end
       end
-      @today - 60*60*24*@backfill_days
+      @input_end_time - 60*60*24*@backfill_days
     end
     
     # Display connection string for this input
@@ -145,10 +145,10 @@ EOS
       # It would be nice to switch this to streaming REST call. 
 
       start_date = 
-        if last_stamp.is_a?(String)
-          Time.parse(last_stamp)
+        if input_start_time.is_a?(String)
+          Time.parse(input_start_time)
         else
-          last_stamp
+          input_start_time
         end
 
       query_sql = ETL::Query::Sequel.new(@select, @series, @where, @group_by, limit)
@@ -156,7 +156,7 @@ EOS
       @rows_processed = 0
       rows_count = limit
 
-      while start_date < @today do
+      while start_date < @input_end_time do
         query_sql.append_replaceable_where(time_range(start_date))
         log.debug("Executing InfluxDB query #{query_sql.query}")
         rows = with_retry { conn.query(query_sql.query, denormalize: false) } || [].each

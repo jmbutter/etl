@@ -30,7 +30,7 @@ module ETL::Job
 
       # change status to running
       jr.running()
-      notiier = job.notifier
+      notifier = job.notifier
       notifier.notify("Starts running") unless notifier.nil?
       begin
         result = job.run()
