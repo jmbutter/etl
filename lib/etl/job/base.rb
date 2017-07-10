@@ -1,4 +1,5 @@
 require 'mixins/cached_logger'
+require 'slack/notifier'
 
 module ETL::Job
 
@@ -6,11 +7,18 @@ module ETL::Job
   class Base
     include ETL::CachedLogger
     
-    attr_reader :batch
+    attr_reader :batch, :notifier
     
-    def initialize(b, notifier = nil)
+    def initialize(b)
       @batch = b
-      @notifier = notifier
+      @notifier ||= begin 
+        if ETL.config.core[:slack]
+          slack_config = ETL.config.core[:slack]
+          if slack_config[:url] && slack_config[:channel] && @payload.job_id 
+            ETL::Slack::Notifier.new(slack_config[:url], slack_config[:channel], @payload.job_id)
+          end
+        end
+      end
     end
     
     # Registers a job class with the manager. This is typically called by
