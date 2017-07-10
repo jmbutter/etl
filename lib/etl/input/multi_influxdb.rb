@@ -13,6 +13,7 @@ module ETL::Input
     include ETL::InfluxdbConn
     
     attr_accessor :params
+    attr_reader :last_stamp, :today
 
     # start_date : integer representing # days we gonna go back (default is 30)
     # time_interval : integer representing seconds (default is 1d (60*60*24))
