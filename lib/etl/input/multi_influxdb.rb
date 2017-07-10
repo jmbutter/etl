@@ -13,6 +13,7 @@ module ETL::Input
     include ETL::InfluxdbConn
     
     attr_accessor :params
+    attr_reader :today, :first_timestamp
 
     # start_date : integer representing # days we gonna go back (default is 30)
     # time_interval : integer representing seconds (default is 1d (60*60*24))
@@ -104,23 +105,25 @@ EOS
     end
 
     def first_timestamp 
-      if !field_keys.empty?
-        measurement = field_keys.keys[0].to_s
-        query = <<-EOS
-          select first(#{measurement}) from #{@series}
+      @first_timestamp ||= begin
+        if !field_keys.empty?
+          measurement = field_keys.keys[0].to_s
+          query = <<-EOS
+            select first(#{measurement}) from #{@series}
 EOS
-        log.debug("Executing InfluxDB query to get first timestamp: #{query}")
-        row = with_retry { conn.query(query, denormalize: false) } || []
+          log.debug("Executing InfluxDB query to get first timestamp: #{query}")
+          row = with_retry { conn.query(query, denormalize: false) } || []
 
-        if !row.nil? && row[0]["columns"] && row[0]["values"]
-          h = Hash[row[0]["columns"].zip(row[0]["values"][0])]
-          oldest_date = Time.parse(h["time"])
-          if ( @today - oldest_date ) <= 60*60*24*@backfill_days
-            return oldest_date
+          if !row.nil? && row[0]["columns"] && row[0]["values"]
+            h = Hash[row[0]["columns"].zip(row[0]["values"][0])]
+            oldest_date = Time.parse(h["time"])
+            if ( @today - oldest_date ) <= 60*60*24*@backfill_days
+              return oldest_date
+            end
           end
         end
+        @today - 60*60*24*@backfill_days
       end
-      @today - 60*60*24*@backfill_days
     end
     
     # Display connection string for this input

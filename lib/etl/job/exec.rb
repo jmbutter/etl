@@ -139,7 +139,7 @@ module ETL::Job
       batch = bf.validate!(bf.from_hash(@payload.batch_hash))
 
       # instantiate the job class
-      job_obj = klass.new(batch)
+      job_obj = klass.new(batch, @notifier)
       raise ETL::JobError, "Failed to instantiate job class: '#{klass.name}'" unless job_obj
       
       [batch, job_obj]
