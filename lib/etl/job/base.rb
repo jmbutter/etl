@@ -28,6 +28,7 @@ module ETL::Job
       inp.log = log
       log.debug("Input: #{inp.name}")
       if @notifier && inp.instance_variable_defined?(:@first_timestamp) && inp.instance_variable_defined?(:@today)
+        puts "run run"
         @notifier.add_text_to_attachments("# Start Time: #{inp.first_timestamp}")
         @notifier.add_text_to_attachments("# End Time: #{inp.today}")
       end
