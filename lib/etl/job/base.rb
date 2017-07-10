@@ -11,7 +11,6 @@ module ETL::Job
     def initialize(b, notifier = nil)
       @batch = b
       @notifier = notifier
-      puts "notifier #{@notifier}"
     end
     
     # Registers a job class with the manager. This is typically called by
@@ -28,9 +27,7 @@ module ETL::Job
       inp = input
       inp.log = log
       log.debug("Input: #{inp.name}")
-      puts "instance variables #{inp.instance_variables}"
       if @notifier && inp.instance_variable_defined?(:@last_stamp) && inp.instance_variable_defined?(:@today)
-        puts "run run"
         @notifier.add_text_to_attachments("# Start Time: #{inp.last_stamp}")
         @notifier.add_text_to_attachments("# End Time: #{inp.today}")
       end
