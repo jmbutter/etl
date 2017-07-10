@@ -76,7 +76,7 @@ module ETL::Job
       rescue StandardError => ex
         # for all other exceptions: save the message
         jr.exception(ex)
-        notifier.add_text_to_attachments({ "title" => "Error message", "value" => "#{ex}"}) unless notifier.nil?
+        notifier.add_field_to_attachments({ "title" => "Error message", "value" => "#{ex}"}) unless notifier.nil?
       end
 
       if !notifier.nil?

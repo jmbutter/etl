@@ -3,8 +3,7 @@ require 'mixins/cached_logger'
 module ETL::Input
   class Base
     include ETL::CachedLogger
-    ATTRSLACK = []
-    attr_accessor :rows_processed, :row_transform, :col_transforms, *ATTRSLACK
+    attr_accessor :rows_processed, :row_transform, :col_transforms
 
     def initialize
       @rows_processed = 0
@@ -52,6 +51,10 @@ module ETL::Input
           row[name] = func.call(row[name])
         end
       end
+    end
+
+    def slack_tags
+      {}
     end
     
     def log_context

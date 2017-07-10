@@ -12,7 +12,6 @@ module ETL::Input
   # Client lib: https://github.com/influxdata/influxdb-ruby
     include ETL::InfluxdbConn
     
-    ATTRSLACK = [:input_start_time, :input_end_time]
     attr_accessor :params
 
     # start_date : integer representing # days we gonna go back (default is 30)
@@ -25,7 +24,11 @@ module ETL::Input
       @where = keyword_args[:where] if keyword_args.include?(:where)
       @group_by = keyword_args[:group_by] if keyword_args.include?(:group_by)
       @limit = keyword_args[:limit] if keyword_args.include?(:limit)
-      @input_start_time = keyword_args[:last_stamp] if keyword_args.include?(:last_stamp) 
+      @input_start_time = if keyword_args.include?(:last_stamp) 
+                            last_stamp = keyword_args[:last_stamp]
+                            last_stamp += " UTC" unless last_stamp.include? "UTC"
+                            Time.parse(last_stamp)
+                          end
       @time_interval = if keyword_args.include?(:time_interval) 
                          keyword_args[:time_interval]
                        else
@@ -45,10 +48,18 @@ module ETL::Input
                        end
       @conn = nil
       @input_end_time = if keyword_args.include?(:today)
-                 keyword_args[:today] 
+                 today = keyword_args[:today].to_s 
+                 today += " UTC" unless today.include? "UTC"
+                 Time.parse(today)
                else
                  Time.now.getutc
                end 
+    end
+
+    def slack_tags
+      [:input_start_time, :input_end_time].each_with_object({}) do |atr, slack_hash|
+        slack_hash[atr] = send(atr)
+      end
     end
 
     def input_start_time
@@ -115,7 +126,9 @@ EOS
 
         if !row.nil? && row[0]["columns"] && row[0]["values"]
           h = Hash[row[0]["columns"].zip(row[0]["values"][0])]
-          oldest_date = Time.parse(h["time"])
+          first_time = h["time"]
+          first_time += " UTC" unless first_time.include? "UTC"
+          oldest_date = Time.parse(first_time)
           if ( @input_end_time - oldest_date ) <= 60*60*24*@backfill_days
             return oldest_date
           end

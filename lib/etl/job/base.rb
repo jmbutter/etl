@@ -35,7 +35,7 @@ module ETL::Job
       inp = input
       inp.log = log
       log.debug("Input: #{inp.name}")
-      inp.ATTRSLACK.map { |atr| @notifier.add_text_to_attachments("# #{atr.to_s}: #{send(atr)}") } if @notifier
+      inp.slack_tags.map { |atr, value| @notifier.add_text_to_attachments("# #{atr.to_s}: #{value}") } if @notifier
       
       # set up our output object
       out = output
