@@ -232,12 +232,13 @@ SQL
       # Not sure how odbc uses a transation so skipping this for now.
 
       # create destination table if it doesn't exist
+      # eventually we will remove this
       @client.create_table(schema) if @create_table
       # Load data into temp csv
       # If the table exists, use the order of columns. Otherwise, use @header
       ::CSV.open(csv_file.path, "w", {:col_sep => @delimiter } ) do |c|
         reader.each_row do |row|
-          if schema && schema.columns
+          if schema && !schema.columns.empty? 
             s = schema.columns.keys.map{|k| row[k.to_s]}
             if !s.nil?
               c << s
