@@ -104,8 +104,6 @@ module ETL::Cli::Cmd
         t = ETL::Redshift::Table.new(table)
 
         schema_map.each do |key, type|
-          puts "type #{type}"
-          puts "type #{type.class}"
           case type.to_sym
           when :int
             t.int(key.to_sym)
