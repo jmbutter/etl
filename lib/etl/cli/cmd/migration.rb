@@ -61,6 +61,13 @@ module ETL::Cli::Cmd
         @provider_connect ||= ::Sequel.connect(provider_params)
       end
 
+      def primary_keys
+        @primary_keys ||= begin
+          source_schema.select { |column, types| types[:primary_key] == true }
+                          .map{ |column, types| column }          
+        end
+      end
+
       def source_schema
         @source_schema ||= provider_connect.schema(@table)
       end
@@ -94,9 +101,11 @@ module ETL::Cli::Cmd
 
       def up_sql
         column_array = schema_map.map { |column, type| "#{column} #{type}" }
+        pk = ""
+        pk = ", PRIMARY KEY(#{primary_keys.join(',')})" unless primary_keys.empty?
 
         up = <<END
-        @client.execute("create table #{@table} ( #{column_array.join(', ')} )")
+        @client.execute("create table #{@table} ( #{column_array.join(', ')}#{pk} )")
 END
       end
 
