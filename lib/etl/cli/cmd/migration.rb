@@ -2,6 +2,7 @@ require_relative '../command'
 require 'etl/job/exec'
 require 'sequel'
 require 'erb'
+require 'etl/redshift/table'
 
 module ETL::Cli::Cmd
   class Migration < ETL::Cli::Command
@@ -100,12 +101,35 @@ module ETL::Cli::Cmd
       end
 
       def up_sql
-        column_array = schema_map.map { |column, type| "#{column} #{type}" }
-        pk = ""
-        pk = ", PRIMARY KEY(#{primary_keys.join(',')})" unless primary_keys.empty?
+        t = ETL::Redshift::Table.new(table)
 
+        schema_map.each do |key, type|
+          puts "type #{type}"
+          puts "type #{type.class}"
+          case type.to_sym
+          when :int
+            t.int(key.to_sym)
+          when :float
+            t.float(key.to_sym)
+          when :double
+            t.double(key.to_sym)
+          when :string
+            t.string(key.to_sym)
+          when :character
+            t.character(key.to_sym)
+          when :datetime
+            t.date(key.to_sym)
+          else
+            if type.to_s.start_with? "varchar"
+              range = type.to_s.split("(")[1].split(")")[0]
+              t.varchar(key.to_sym, range.to_i)
+            end
+          end
+        end
+
+        primary_keys.each { |pk| t.add_primarykey(pk) }
         up = <<END
-        @client.execute("create table #{@table} ( #{column_array.join(', ')}#{pk} )")
+        @client.execute("#{t.create_table_sql}")
 END
       end
 

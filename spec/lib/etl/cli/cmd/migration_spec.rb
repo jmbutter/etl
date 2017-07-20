@@ -97,7 +97,7 @@ END
     end
 
     it '#up_sql' do
-      expect( described_instance.up_sql.lstrip.rstrip ).to eq( "@client.execute(\"create table test_table ( day datetime, attr varchar(100), PRIMARY KEY(day) )\")" )
+      expect( described_instance.up_sql.lstrip.rstrip ).to eq( "@client.execute(\"CREATE TABLE IF NOT EXISTS test_table( \"day\" timestamp NOT NULL, \"attr\" varchar (100), PRIMARY KEY(day) )\")" )
     end
 
     it '#down_sql' do
@@ -130,7 +130,7 @@ END
     end
 
     it '#up_sql' do
-      expect( described_instance.up_sql.lstrip.rstrip ).to eq( "@client.execute(\"create table test_table ( day datetime, attr varchar(100) )\")" )
+      expect( described_instance.up_sql.lstrip.rstrip ).to eq( "@client.execute(\"CREATE TABLE IF NOT EXISTS test_table( \"day\" timestamp, \"attr\" varchar (100) )\")" )
     end
 
     it '#down_sql' do
@@ -151,7 +151,7 @@ END
     end
 
     it '#up_sql' do
-      expect( described_instance.up_sql.lstrip.rstrip ).to eq( "@client.execute(\"create table test_table ( day datetime, attr varchar(100), PRIMARY KEY(day) )\")" )
+      expect( described_instance.up_sql.lstrip.rstrip ).to eq( "@client.execute(\"CREATE TABLE IF NOT EXISTS test_table( \"day\" timestamp NOT NULL, \"attr\" varchar (100), PRIMARY KEY(day) )\")" )
     end
 
     it '#down_sql' do
