@@ -34,12 +34,12 @@ module ETL
       conn_params[:encoding] = "utf8"
       conn_params[:reconnect] = false
       conn_params[:pool] = 5
-      conn_params[:adapter] = ENV.fetch('#{prefix}_ADAPTER', 'postgres')
-      conn_params[:dbname] = ENV.fetch('#{prefix}_DB_NAME', 'postgres')
-      conn_params[:username] = ENV.fetch('#{prefix}_USER', 'root')
-      conn_params[:password] = ENV.fetch('#{prefix}_PASSWORD', 'root')
-      conn_params[:host] = ENV.fetch('#{prefix}_HOST', 'localhost')
-      conn_params[:port] = ENV.fetch('#{prefix}_PORT', 5432)
+      conn_params[:adapter] = ENV.fetch("#{prefix}_ADAPTER", 'postgres')
+      conn_params[:dbname] = ENV.fetch("#{prefix}_DB_NAME", 'postgres')
+      conn_params[:username] = ENV.fetch("#{prefix}_USER", 'root')
+      conn_params[:password] = ENV.fetch("#{prefix}_PASSWORD", 'root')
+      conn_params[:host] = ENV.fetch("#{prefix}_HOST", 'localhost')
+      conn_params[:port] = ENV.fetch("#{prefix}_PORT", 5432)
       conn_params
     end
 
@@ -64,16 +64,16 @@ module ETL
 
     def redshift_env_vars(prefix: "ETL_REDSHIFT", use_odbc_dsn_connection: false)
       redshift_hash = {}
-      redshift_hash[:user] = ENV.fetch('#{prefix}_USER', 'masteruser')
-      redshift_hash[:password] = ENV.fetch('#{prefix}_PASSWORD')
-      redshift_hash[:port] = ENV.fetch('#{prefix}_PORT', 5439)
+      redshift_hash[:user] = ENV.fetch("#{prefix}_USER", 'masteruser')
+      redshift_hash[:password] = ENV.fetch("#{prefix}_PASSWORD")
+      redshift_hash[:port] = ENV.fetch("#{prefix}_PORT", 5439)
       if use_odbc_dsn_connection
-        redshift_hash[:driver] = ENV.fetch('#{prefix}_DRIVER', 'Amazon Redshift (x64)')
-        redshift_hash[:server] = ENV.fetch('#{prefix}_HOST')
-        redshift_hash[:database] = ENV.fetch('#{prefix}_DB_NAME', 'dev')
+        redshift_hash[:driver] = ENV.fetch("#{prefix}_DRIVER", 'Amazon Redshift (x64)')
+        redshift_hash[:server] = ENV.fetch("#{prefix}_HOST")
+        redshift_hash[:database] = ENV.fetch("#{prefix}_DB_NAME", 'dev')
       else
-        redshift_hash[:dbname] = ENV.fetch('#{prefix}_DB_NAME', 'dev')
-        redshift_hash[:host] = ENV.fetch('#{prefix}_HOST')
+        redshift_hash[:dbname] = ENV.fetch("#{prefix}_DB_NAME", 'dev')
+        redshift_hash[:host] = ENV.fetch("#{prefix}_HOST")
       end
       redshift_hash
     end
