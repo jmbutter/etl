@@ -77,7 +77,7 @@ module ETL::Cli::Cmd
         @schema_map ||= begin
           schema_hash = source_schema.each_with_object({}) do |schema, h|
             column_name = columns[schema[0].to_sym]
-            h[column_name] = schema[1][:type] 
+            h[column_name] = schema[1][:db_type].to_sym 
           end
           schema_hash.select { |k, v| columns.values.include? k } .sort_by { |k, _| columns.values.index(k) }.to_h
         end
@@ -118,7 +118,7 @@ module ETL::Cli::Cmd
           when :boolean
             t.boolean(key.to_sym)
           when :text
-            t.text(key.to_sym)
+            t.varchar(key.to_sym, "max")
           when :datetime
             t.date(key.to_sym)
           else
@@ -128,13 +128,13 @@ module ETL::Cli::Cmd
             end
 
             t.int(key.to_sym) if type.to_s.start_with? "int"
-            t.smallint(key.to_sym) if type.to_s.start_with? "tinyint"
+            t.boolean(key.to_sym) if type.to_s.start_with? "tinyint"
           end
         end
 
         primary_keys.each { |pk| t.add_primarykey(pk) }
         up = <<END
-        @client.execute("#{t.create_table_sql}")
+        @client.execute("#{t.create_table_sql.gsub!('"', '\"')}")
 END
       end
 
