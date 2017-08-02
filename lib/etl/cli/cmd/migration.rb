@@ -128,13 +128,13 @@ module ETL::Cli::Cmd
 
         primary_keys.each { |pk| t.add_primarykey(pk) }
         up = <<END
-        @client.execute("#{t.create_table_sql.gsub!('"', '\"')}")
+        @client.execute('#{t.create_table_sql}')
 END
       end
 
       def down_sql
         down = <<END
-        @client.execute("drop table #{@table}")
+        @client.execute('drop table #{@table}')
 END
       end
 
