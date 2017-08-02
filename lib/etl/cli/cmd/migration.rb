@@ -109,7 +109,6 @@ module ETL::Cli::Cmd
 
       def up_sql
         t = ETL::Redshift::Table.new(table)
-        puts "schema_map #{schema_map}"
 
         schema_map.each do |key, type|
           if type.is_a? Hash 
