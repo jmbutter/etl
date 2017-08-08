@@ -104,7 +104,7 @@ SQL
     end
 
     def delete_object_from_s3(bucket, prefix)
-      s3 = Aws::S3::Client.new(region: @region, credentials: creds(prefix, @region, @iam_role))
+      s3 = Aws::S3::Client.new(region: @region, credentials: creds(prefix))
       resp = s3.list_objects(bucket: bucket)
       keys = resp[:contents].select { |content| content[:key].start_with? prefix }.map { |content| content[:key] }
 
