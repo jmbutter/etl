@@ -56,5 +56,27 @@ SQL
       execute(sql)
     end
 
+    def unload_to_s3(sql, destination, iam_role, delimiter = '|')
+      sql = <<SQL 
+        UNLOAD ('#{sql}') TO 's3://#{destination}'
+        IAM_ROLE '#{iam_role}'
+        DELIMITER '#{delimiter}'
+SQL
+      execute(sql)
+    end
+
+    def copy_from_s3(table_name, destination, iam_role, region, delimiter = '|')
+      sql = <<SQL
+        COPY #{table_name}
+        FROM 's3://#{destination}' 
+        IAM_ROLE '#{iam_role}'
+        TIMEFORMAT AS 'auto'
+        DATEFORMAT AS 'auto'
+        ESCAPE
+        DELIMITER '#{delimiter}'
+        REGION '#{region}'
+SQL
+      execute(sql)
+    end
   end
 end
