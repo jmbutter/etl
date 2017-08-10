@@ -24,6 +24,7 @@ module ETL::Model
       # Adding this to allow the current configuration files to work with pg lib
       # separate function so useful for tests.
       if conn_params[:adapter] == "postgres"
+        puts "postgres"
         conn_params.delete(:adapter)
         conn_params.delete(:encoding)
         conn_params.delete(:reconnect)
