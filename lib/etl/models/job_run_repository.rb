@@ -15,10 +15,9 @@ module ETL::Model
     def initialize(conn_params = nil, schema_name= 'public')
       @conn_params = conn_params
       @schema_name = schema_name
-      if @conn_params.nil?
-        @conn_params = ETL.config.core[:database]
-      end
+      @conn_params = ETL.config.core[:database] if @conn_params.nil?
       @conn_params = prep_conn(@conn_params)
+      puts "conn_params #{@conn_params}"
     end
 
     def prep_conn(conn_params)
