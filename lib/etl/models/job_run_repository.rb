@@ -24,9 +24,13 @@ module ETL::Model
     def prep_conn(conn_params)
       # Adding this to allow the current configuration files to work with pg lib
       # separate function so useful for tests.
-      conn_params.delete(:adapter)
-      conn_params.delete(:encoding)
-      conn_params.delete(:reconnect)
+      if conn_params[:database] == "postgres"
+        conn_params.delete(:adapter)
+        conn_params.delete(:encoding)
+        conn_params.delete(:reconnect)
+        conn_params.delete(:database)
+        conn_params.delete(:pool)
+      end
       conn_params
     end
 
