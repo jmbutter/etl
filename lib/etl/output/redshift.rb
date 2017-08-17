@@ -253,7 +253,7 @@ SQL
           # Need this method since ESCAPE option with COPY command on Redshift does not work
           row = erow.each_with_object({}) do |r, h|
             v = r[1]
-            v = v.tr!("\n", " ") if v.is_a? String
+            v.tr!("\n", " ") if v.is_a? String
             h[r[0]] = v
           end
 
