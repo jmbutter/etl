@@ -254,7 +254,7 @@ SQL
           row = erow.each_with_object({}) do |r, h|
             v = r[1]
             v.tr!("\n", " ") if v.is_a? String
-            h[r[0]] = v
+            h[r[0].to_s] = v
           end
 
           if schema && !schema.columns.empty? 
@@ -264,7 +264,7 @@ SQL
               rows_processed += 1
             end
           else
-            s = table_schema.map { |k| row[k.to_s] }
+            s = table_schema.map { |k, v| row[k.to_s] }
             c << s
             rows_processed += 1
           end
