@@ -48,7 +48,14 @@ module ETL::Cli::Cmd
       option ['-m', '--match'], :flag, "Treat job ID as regular expression filter and run matching jobs"
 
       def execute
-        ETL.load_user_classes
+        notifier = ::ETL::Slack::Notifier.create_instance("etl_list")
+
+        begin
+          ETL.load_user_classes
+        rescue StandardError => e
+          @notifier.notify("Running jobs failed: #{e.to_s}") unless notifier.nil?
+          throw
+        end
 
         klasses = job_classes(job_id, match?)
         if @batch_str
@@ -66,7 +73,11 @@ module ETL::Cli::Cmd
           # No batch string
           klasses.each do |id, klass|
             klass.batch_factory.each do |batch|
-              run_batch(id, batch)
+              begin
+                run_batch(id, batch)
+              rescue StandardError => e
+                @notifier.notify("Running batch #{batch.to_s} failed: #{e.to_s}") unless notifier.nil?
+              end
             end
           end
         end
