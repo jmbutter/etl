@@ -15,7 +15,7 @@ module ETL::Cli::Cmd
         begin
           ETL.load_user_classes
         rescue StandardError => e
-          @notifier.notify("Listing jobs failed: #{e.to_s}") unless notifier.nil?
+          notifier.notify("Listing jobs failed: #{e.to_s}") unless notifier.nil?
           throw
         end
         dependencies_jobs = ETL::Job::Manager.instance.sorted_dependent_jobs
@@ -53,7 +53,7 @@ module ETL::Cli::Cmd
         begin
           ETL.load_user_classes
         rescue StandardError => e
-          @notifier.notify("Running jobs failed: #{e.to_s}") unless notifier.nil?
+          notifier.notify("Running jobs failed: #{e.to_s}") unless notifier.nil?
           throw
         end
 
@@ -72,12 +72,16 @@ module ETL::Cli::Cmd
         else
           # No batch string
           klasses.each do |id, klass|
-            klass.batch_factory.each do |batch|
-              begin
-                run_batch(id, batch)
-              rescue StandardError => e
-                @notifier.notify("Running batch #{batch.to_s} failed: #{e.to_s}") unless notifier.nil?
+            begin 
+              klass.batch_factory.each do |batch|
+                begin
+                  run_batch(id, batch)
+                rescue StandardError => e
+                  notifier.notify("Running batch #{batch.to_s} failed: #{e.to_s}") unless notifier.nil?
+                end
               end
+            rescue StandardError => e
+              notifier.notify("Making batch factory failed: #{e.to_s}") unless notifier.nil?
             end
           end
         end
