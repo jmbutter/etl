@@ -219,7 +219,12 @@ SQL
       end
     end
 
-     # Runs the ETL job
+    def trim_newline(input)
+      return input unless input.is_a? String
+      input.gsub("\n", " ")
+    end
+
+    # Runs the ETL job
     def run_internal
       rows_processed = 0
       msg = ''
@@ -235,11 +240,7 @@ SQL
         reader.each_row do |erow|
           # Remove line break from all columns so that Redshift can detect delimiter
           # Need this method since ESCAPE option with COPY command on Redshift does not work
-          row = erow.each_with_object({}) do |r, h|
-            v = r[1]
-            v.tr!("\n", " ") if v.is_a? String
-            h[r[0].to_s] = v
-          end
+          row = erow.each_with_object({}) { |r, h| h[r[0].to_s] = trim_newline(r[1]) }
 
           if schema && !schema.columns.empty? 
             s = schema.columns.keys.map { |k| row[k.to_s] }
