@@ -10,7 +10,7 @@ module ETL
         super(name, opts)
         @dist_key = ""
         @sort_keys = []
-        @identity_key = {} 
+        @identity_key = {}
         @backup = opts.fetch(:backup, true)
         @dist_style = opts.fetch(:dist_style, '')
       end
@@ -31,6 +31,96 @@ module ETL
         add_column(name, :smallint, nil, nil, &block)
       end
 
+      def self.bool_convert(value, default)
+        if value == 'NO'
+          return false
+        elsif value == 'YES'
+          return true
+        end
+        default
+      end
+
+      def self.from_schema(table_name, columns_info, pk_info)
+        t = Table.new(table_name)
+        pks = []
+        sort_key = nil
+        dist_key = nil
+        columns_info.each do |col|
+          col_name = col["column_name"]
+          ordinal_pos = col["ordinal_position"].to_i
+          nullable = bool_convert(col["is_nullable"], true)
+          data_type = col["data_type"]
+          character_max = col["character_maximum_length"]
+          width = col["numeric_precision"]
+          scale = col["numeric_scale"]
+          dist_key = col["distkey"]
+          udt_name = col["udt_name"]
+          sort_key = col["sortkey"]
+
+          if pk_info.include?(ordinal_pos)
+            pks << col_name.to_s
+          end
+
+          if dist_key
+            t.set_distkey(col_name)
+          end
+
+          if sort_key != "0"
+            t.add_sortkey(col_name)
+          end
+
+          if udt_name == "varchar"
+            data_type = "varchar"
+          end
+          
+          if data_type == "timestamp without time zone"
+            data_type = "timestamp"
+          elsif data_type == "timestamp with time zone" 
+            data_type = "timestamptz"
+          end
+
+          type = case data_type
+          when "smallint"
+            t.smallint(col_name)
+          when "integer"
+            t.int(col_name)
+          when "bigint"
+            t.bigint(col_name)
+          when "double precision"
+            t.float(col_name)
+          when "real"
+            t.float(col_name)
+          when "float4"
+            t.float(col_name)
+          when "float8"
+            t.float(col_name)
+          when "boolean"
+            t.boolean(col_name)
+          when "timestamp"
+            t.date(col_name)
+          when "timestamptz"
+            t.datetz(col_name)
+          when "date"
+            t.date(col_name)
+          when "text"
+            t.text(col_name)
+          when "varchar"
+            t.varchar(col_name, character_max)
+          when "numeric"
+            t.numeric(col_name, width, scale)
+          when nil
+            t.string(col_name)
+          else
+            raise "Unknown type: #{data_type} for col #{col_name}"
+          end
+
+          t.columns[col_name].nullable = nullable
+        end
+        
+        t.primary_key = pks
+        return t
+      end
+
       def create_table_sql(using_redshift_odbc_driver = true)
         temp =""
         temp = if @temp
@@ -47,7 +137,7 @@ module ETL
         columns.each do |name, column|
           column_type = col_type_str(column)
           column_statement = "\"#{name}\" #{column_type}"
-          column_statement += " IDENTITY(#{@identity_key[:seed]}, #{@identity_key[:step]})" if !@identity_key.empty? && @identity_key[:column] == name.to_sym  
+          column_statement += " IDENTITY(#{@identity_key[:seed]}, #{@identity_key[:step]})" if !@identity_key.empty? && @identity_key[:column] == name.to_sym
           column_statement += " NOT NULL" if @primary_key.include?(name.to_sym) || ( !@identity_key.empty? && @identity_key[:column] == name.to_sym )
           type_ary << column_statement
         end

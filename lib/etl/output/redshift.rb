@@ -7,6 +7,7 @@ require_relative '../redshift/table'
 module ETL::Output
 
   # Class that contains shared logic for loading data from S3 to Redshift.
+  # Deprecated! Don't use this any more!
   class Redshift < Base
     attr_accessor :load_strategy, :client, :aws_params, :dest_table, :delimiter, :create_table
 
@@ -70,23 +71,14 @@ module ETL::Output
     # ETL::Schema::Column object
     def col_type_str(col)
       case col.type
-        when :string
-          "varchar(255)"
-        when :date
-          "date"
+        when :varchar
+          "varchar(#{col.width})"
         when :timestamp
           "timestamp"
+        when :float
+          "float8"
         when :numeric
-          s = "numeric"
-          if !col.width.nil? || !col.precision.nil?
-            s += "("
-            s += col.width.nil? ? "0" : col.width.to_s()
-            if !col.precision.nil?
-              s += ", #{col.precision}"
-            end
-            s += ")"
-          end
-          s
+          "numeric(#{col.width}, #{col.precision})"
         else
           # Allow other types to just flow through, which gives us a simple
           # way of supporting columns that are coming in through db reflection

@@ -3,12 +3,13 @@ module ETL::Schema
 
   # Class representing a single column including width and precision
   class Column
-    attr_accessor :type, :width, :precision
+    attr_accessor :type, :width, :precision, :nullable
 
-    def initialize(type, width = nil, precision = nil)
+    def initialize(type, width = nil, precision = nil, nullable=false)
       @type = type.to_sym()
       @width = width
       @precision = precision
+      @nullable = nullable
     end
 
     def to_s

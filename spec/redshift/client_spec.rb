@@ -20,6 +20,30 @@ RSpec.describe "redshift" do
       client.drop_table(table_name)
     end
 
+    it "get table schema" do
+      client.drop_table(table_name)
+      sql = <<SQL
+  create table #{table_name} (
+    day timestamp,
+    day2 timestamptz,
+    id integer,
+    test varchar(22),
+    num numeric(5,2),
+    f1 float8,
+    f2 float4,
+    large_int bigint,
+    small_int smallint,
+    PRIMARY KEY(id) );
+SQL
+      client.execute(sql)
+      rows = []
+      schema = client.table_schema(table_name)
+
+      expect(schema.columns.keys).to eq(["day", "day2", "f1", "f2", "id", "large_int", "num", "small_int", "test"])
+      expect(schema.primary_key).to eq(["id"])
+    end
+
+
     it "get table columns" do
       client.drop_table(table_name)
       sql = <<SQL
@@ -33,6 +57,31 @@ SQL
       end
       expect(rows.to_s).to eq("[{\"column\"=>\"day\", \"type\"=>\"timestamp without time zone\"}]")
     end
+
+    it "upsert data into a table" do
+      client.drop_table("simple_orgs")
+      client.drop_table("simple_orgs_history")
+      sql = <<SQL
+  create table simple_orgs (
+    id integer,
+    value1 varchar(20),
+    PRIMARY KEY(id) );
+ 
+  create table simple_orgs_history (
+    h_id integer,
+    id integer,
+    bento varchar(10),
+    PRIMARY KEY(h_id) );
+SQL
+      client.execute(sql)
+      rows = []
+      client.upsert_rows(
+      schema = client.table_schema(table_name)
+
+      expect(schema.columns.keys).to eq(["day", "day2", "f1", "f2", "id", "large_int", "num", "small_int", "test"])
+      expect(schema.primary_key).to eq(["id"])
+    end
+
 
     it "move data by unloading and copying" do
       target_table = "test_target_table_1"
