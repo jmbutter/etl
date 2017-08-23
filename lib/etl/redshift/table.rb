@@ -132,7 +132,7 @@ module ETL
           column_type = col_type_str(column)
           column_statement = "\"#{name}\" #{column_type}"
           column_statement += " IDENTITY(#{@identity_key[:seed]}, #{@identity_key[:step]})" if !@identity_key.empty? && @identity_key[:column] == name.to_sym
-          column_statement += " NOT NULL" if @primary_key.include?(name.to_sym) || ( !@identity_key.empty? && @identity_key[:column] == name.to_sym )
+          column_statement += " NOT NULL" if !column.nullable
           type_ary << column_statement
         end
 

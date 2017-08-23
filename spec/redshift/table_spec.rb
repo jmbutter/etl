@@ -21,6 +21,16 @@ RSpec.describe 'Redshift Table' do
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int NOT NULL, PRIMARY KEY(id) ) DISTKEY(id) SORTKEY(id)')
       end
 
+      it 'Create a table sql with a non-nullable value' do
+        t = ETL::Redshift::Table.new(:test_table)
+        t.int(:id)
+        t.string(:info)
+        t.add_primarykey(:id)
+        t.columns["id"].nullable = false
+
+        expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int NOT NULL, "info" varchar(255) NOT NULL, PRIMARY KEY(id) )')
+      end
+
       it 'Create a temp table sql' do
         t = ETL::Redshift::Table.new(:test_table, temp: true)
         t.int(:id)

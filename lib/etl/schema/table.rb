@@ -112,6 +112,13 @@ module ETL::Schema
 
     def add_primarykey(pks)
       @primary_key.push(pks)
+      if pks.is_a? Array
+        pks.each do |pk|
+          columns[pk].nullable = true
+        end
+      else
+        columns[pks].nullable = false if pks.is_a? String
+      end
     end
 
   end
