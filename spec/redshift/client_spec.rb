@@ -71,13 +71,14 @@ SQL
         { "id" => 1, "col2" => "value2a" },
         { "id" => 2, "col2" => "value2b" },
         { "id" => 3, "col2" => "value2c" },
+        { "id" => 4, "col2" => "value2c \n aghonce" }, # newline should be removed
       ]
       input = ETL::Input::Array.new(data)
       client.upsert_rows(input, ["simple_orgs"])
       r = client.execute("Select * from simple_orgs")
-      expect(r.ntuples).to eq(3)
+      expect(r.ntuples).to eq(4)
       sorted_values = r.values.sort_by { |value| value[0] }
-      expect(sorted_values).to eq([["1", "value2a"], ["2", "value2b"], ["3", "value2c"]])
+      expect(sorted_values).to eq([["1", "value2a"], ["2", "value2b"], ["3", "value2c"], ["4", "value2c   aghonce"]])
     end
 
     it "upsert data into two tables with splitter" do

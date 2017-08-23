@@ -42,7 +42,6 @@ module ETL::Redshift
     end
 
     def execute(sql)
-      puts "#{sql}\n"
       log.debug("SQL: '#{sql}'")
       db.exec(sql)
     end
