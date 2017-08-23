@@ -5,7 +5,7 @@ module ETL::Schema
   class Column
     attr_accessor :type, :width, :precision, :nullable, :ordinal_pos
 
-    def initialize(type, width = nil, precision = nil, nullable=false)
+    def initialize(type, width = nil, precision = nil, nullable=true)
       @type = type.to_sym()
       @width = width
       @precision = precision

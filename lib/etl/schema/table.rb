@@ -114,10 +114,12 @@ module ETL::Schema
       @primary_key.push(pks)
       if pks.is_a? Array
         pks.each do |pk|
-          columns[pk].nullable = true
+          columns[pk].nullable = false
         end
-      else
-        columns[pks].nullable = false if pks.is_a? String
+      elsif pks.is_a? Symbol
+        columns[pks.to_s].nullable = false
+      elsif pks.is_a? String
+        columns[pks].nullable = false
       end
     end
 
