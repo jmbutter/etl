@@ -4,7 +4,7 @@ require 'etl/core'
 
 RSpec.describe "redshift" do
   context "client testing" do
-    let(:client) { ETL::Redshift::Client.new(ETL.config.redshift[:test]) }
+    let(:client) { ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL::config.aws[:test]) }
     let(:table_name) { "test_table_1" }
     let(:bucket) { ETL.config.aws[:etl][:s3_bucket] }
     let(:random_key) { [*('a'..'z'), *('0'..'9')].sample(10).join }
@@ -58,28 +58,24 @@ SQL
       expect(rows.to_s).to eq("[{\"column\"=>\"day\", \"type\"=>\"timestamp without time zone\"}]")
     end
 
-    it "upsert data into a table" do
+    it "upsert data into one table" do
       client.drop_table("simple_orgs")
-      client.drop_table("simple_orgs_history")
-      sql = <<SQL
+      create_table = <<SQL
   create table simple_orgs (
     id integer,
-    value1 varchar(20),
+    col2 varchar(20),
     PRIMARY KEY(id) );
- 
-  create table simple_orgs_history (
-    h_id integer,
-    id integer,
-    bento varchar(10),
-    PRIMARY KEY(h_id) );
 SQL
-      client.execute(sql)
-      rows = []
-      client.upsert_rows(
-      schema = client.table_schema(table_name)
-
-      expect(schema.columns.keys).to eq(["day", "day2", "f1", "f2", "id", "large_int", "num", "small_int", "test"])
-      expect(schema.primary_key).to eq(["id"])
+      client.execute(create_table)
+      data = [
+        { "col1" => 1, "col2" => "value2a" },
+        { "col1" => 2, "col2" => "value2b" },
+        { "col1" => 3, "col2" => "value2c" },
+      ]
+      input = ETL::Input::Array.new(data)
+      client.upsert_rows(input, ["simple_orgs"])
+      r = client.execute("Select * from simple_orgs")
+      expect(r.cmd_tuples).to eq(3)
     end
 
 

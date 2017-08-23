@@ -16,9 +16,12 @@ module ETL::Redshift
 
     # when odbc driver is fully working the use redshift driver can
     # default to true
-    def initialize(conn_params={})
+    def initialize(conn_params={}, aws_params={})
       @use_redshift_odbc_driver = false
       @conn_params = conn_params
+      @region = aws_params.fetch(:region, '')
+      @iam_role = aws_params.fetch(:role_arn, '')
+      @bucket = aws_params.fetch(:s3_bucket, '')
       @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
       ObjectSpace.define_finalizer(self, proc { db.disconnect })
     end
@@ -36,6 +39,7 @@ module ETL::Redshift
     end
 
     def execute(sql)
+      puts "#{sql}\n"
       log.debug("SQL: '#{sql}'")
       db.exec(sql)
     end
@@ -83,7 +87,7 @@ SQL
 
     def count_row_by_s3(destination)
       sql = <<SQL
-        SELECT c.lines_scanned FROM stl_load_commits c, stl_query q WHERE filename LIKE 's3://#{destination}%' 
+        SELECT c.lines_scanned FROM stl_load_commits c, stl_query q WHERE filename LIKE 's3://#{destination}%'
         AND c.query = q.query AND trim(q.querytxt) NOT LIKE 'COPY ANALYZE%'
 SQL
       results = execute(sql)
@@ -93,7 +97,7 @@ SQL
     end
 
     def unload_to_s3(query, destination, delimiter = '|')
-      sql = <<SQL 
+      sql = <<SQL
         UNLOAD ('#{query}') TO 's3://#{destination}'
         IAM_ROLE '#{@iam_role}'
         DELIMITER '#{delimiter}'
@@ -104,7 +108,7 @@ SQL
     def copy_from_s3(table_name, destination, delimiter = '|')
       sql = <<SQL
         COPY #{table_name}
-        FROM 's3://#{destination}' 
+        FROM 's3://#{destination}'
         IAM_ROLE '#{@iam_role}'
         TIMEFORMAT AS 'auto'
         DATEFORMAT AS 'auto'
@@ -127,103 +131,99 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, row_splitter = nil, destination_tables = [], row_transformers = [], delimiter='|')
+    def upsert_rows(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter='|')
       # write csv files
-      rows_processed, file_paths, table_schemas = write_csv_files(reader, row_splitter, destination_tables, row_transformers)
+      arr = write_csv_files(reader, destination_tables, row_splitter, row_transformers)
+      rows_processed = arr[0]
+      file_paths = arr[1]
+      table_schemas = arr[2]
+
+      if rows_processed == 0
+        log.warn("No rows processed")
+        return rows_processed
+      end
 
       tmp_session = destination_tables.join("_") + @random_key
 
       # upload files to s3
-      ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
+      creds = ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
 
       file_paths.each do |key, fp|
-        s3_resource = Aws::S3::Resource.new(region: :region, credentials: creds)
+        s3_resource = Aws::S3::Resource.new(region: @region, credentials: creds)
         s3_resource.bucket(@bucket).object(key).upload_file(fp)
       end
 
       destination_tables.each do |t|
         table_schema = table_schemas[t]
         tmp_table = create_staging_table(t)
-        # load temporary tables
-
-        sql =<<SQL
-          COPY #{tmp_table}
-          FROM 's3://#{@bucket}/#{tmp_table}'
-          IAM_ROLE '#{@iam_role}'
-          TIMEFORMAT AS 'auto'
-          DATEFORMAT AS 'auto'
-          ESCAPE
-          DELIMITER '#{delimiter}'
-          REGION '#{@region}'
-SQL
-
-        @client.execute(sql)
-        # upsert into destination tables
-
-        sql = <<SQL
+        pks = table_schema.primary_key
+        s3_path = @bucket+"/"+t
+        copy_from_s3(tmp_table, s3_path, delimiter)
+        delete_sql = <<SQL
           DELETE FROM #{t}
           USING #{tmp_table} s
           WHERE #{pks.collect{ |pk| "#{t}.#{pk} = s.#{pk}" }.join(" and ")}
 SQL
-        execute(sql)
+        execute(delete_sql)
 
-        sql = <<SQL
+        # load temporary tables
+        insert_sql = <<SQL
           INSERT INTO #{t}
           SELECT * FROM #{tmp_table}
 SQL
-        .execute(sql)
+        execute(insert_sql)
       end
-    end
-    
-    def create_staging_table(destination_table)
-      
-      tmp_table = destination_table + @random_key
-      # create temp table to add data to.
-      temp_table = ::ETL::Redshift::Table.new(tmp_table, { temp: true, like: destination_table })
-      create_table(temp_table)
-      temp_table
+      rows_processed
     end
 
-    def write_csv_files(reader, row_splitter = nil, destination_tables = [], row_transformers = [])
+    def create_staging_table(destination_table)
+      tmp_table_name = destination_table + @random_key
+      # create temp table to add data to.
+      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, { temp: true, like: destination_table })
+      create_table(tmp_table)
+      tmp_table_name
+    end
+
+    def write_csv_files(reader, destination_tables, row_splitter = nil, row_transformers = [])
       # Remove new lines ensures that all row values have newlines removed.
-      row_transformers << RemoveNewlines.new
+      row_transformers << ::ETL::Transform::RemoveNewlines.new
       table_schemas = {}
       csv_files = {}
-      csv_file_paths {}
+      csv_file_paths = {}
       destination_tables.each do |t|
         csv_file_paths[t] = Tempfile.new(t)
         csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => @delimiter } )
         table_schemas[t] = table_schema(t)
 
         # Initialize the headers in csvs
-        s = table_schemas[t].columns.keys.map { |k| row[k.to_s] }
-        raise "Table '#{destination_table}' does not have a primary key"
-        csv_files[t] << s
+        raise "Table '#{t}' does not have a primary key" unless table_schemas[t].primary_key.count > 0
       end
-
+      
+      rows_processed = 0
       begin
         reader.each_row do |row|
+          row_transformers.each do |tf|
+            row = tf.transform(row)
+          end
           if !row_splitter.nil?
             rows = row_splitter.transform(row)
           else
-            rows = [row]
+            raise "Expected only 1 destination table as no row splitter is used" if destination_tables.count > 1
+            rows = {destination_tables[0] => row}
           end
           rows.each do |key, split_row|
-            row_transformers.each do |tf|
-              split_row = tf.transform(split_row)
-            end
             table_schema = table_schemas[key]
-            s = table_schema.map { |k, v| row[k.to_s] }
+            s = table_schema.columns.map { |k, v| split_row[k.to_s] }
             csv_files[key] << s
           end
           rows_processed += 1
         end
       ensure
         destination_tables.each do |t|
-          csv_files[key].close()
+          csv_files[t].close()
         end
       end
-      [rows_processed, csv_file_paths]
+      [rows_processed, csv_file_paths, table_schemas]
     end
   end
 end
