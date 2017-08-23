@@ -26,7 +26,7 @@ RSpec.describe 'Redshift Table' do
         t.int(:id)
         t.string(:info)
         t.add_primarykey(:id)
-        t.columns["id"].nullable = false
+        t.columns["info"].nullable = false
 
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int NOT NULL, "info" varchar(255) NOT NULL, PRIMARY KEY(id) )')
       end

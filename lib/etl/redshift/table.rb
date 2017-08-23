@@ -25,6 +25,7 @@ module ETL
 
       def set_identity(column, seed=1, step=1)
         @identity_key = { column: column, seed: seed, step: step }
+        columns[column.to_s].nullable = false
       end
 
       def smallint(name, &block)
