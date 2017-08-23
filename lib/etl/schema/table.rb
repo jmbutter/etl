@@ -44,37 +44,6 @@ module ETL::Schema
       return t
     end
 
-    def self.from_redshift_schema(schema)
-      t = Table.new
-      schema.each do |col|
-        col_name = col[0]
-        col_opts = col[1]
-        col_dkey = col[2]
-        col_skey = col[3]
-
-        # translate the database type from Sequel to our types
-        type = case col_opts
-        when "integer"
-          :int
-        when "datetime"
-          :date
-        when nil
-          :string
-        else
-          col_opts.to_s
-        end
-
-        if col_dkey == 't'
-          if col_skey == '1'
-            add_sortkey(col_name)
-          end
-          add_distkey(col_name)
-        end
-        # TODO need to handle width and precision properly
-        t.add_column(col_name, type, nil, nil)
-      end
-      return t
-    end
 
     def to_s
       a = Array.new
@@ -90,6 +59,10 @@ module ETL::Schema
       @columns[name.to_s] = t
       yield t if block_given?
     end
+    
+    def datetz(name, &block)
+      add_column(name, :datetz, nil, nil, &block)
+    end
 
     def date(name, &block)
       add_column(name, :date, nil, nil, &block)
@@ -104,8 +77,16 @@ module ETL::Schema
       add_column(name, :string, nil, nil, &block)
     end
 
+    def smallint(name, &block)
+      add_column(name, :smallint, nil, nil, &block)
+    end
+
     def int(name, &block)
       add_column(name, :int, nil, nil, &block)
+    end
+
+    def bigint(name, &block)
+      add_column(name, :bigint, nil, nil, &block)
     end
 
     def float(name, &block)
@@ -131,6 +112,15 @@ module ETL::Schema
 
     def add_primarykey(pks)
       @primary_key.push(pks)
+      if pks.is_a? Array
+        pks.each do |pk|
+          columns[pk].nullable = false
+        end
+      elsif pks.is_a? Symbol
+        columns[pks.to_s].nullable = false
+      elsif pks.is_a? String
+        columns[pks].nullable = false
+      end
     end
 
   end

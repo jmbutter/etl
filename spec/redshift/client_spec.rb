@@ -4,7 +4,7 @@ require 'etl/core'
 
 RSpec.describe "redshift" do
   context "client testing" do
-    let(:client) { ETL::Redshift::Client.new(ETL.config.redshift[:test]) }
+    let(:client) { ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL::config.aws[:test]) }
     let(:table_name) { "test_table_1" }
     let(:bucket) { ETL.config.aws[:etl][:s3_bucket] }
     let(:random_key) { [*('a'..'z'), *('0'..'9')].sample(10).join }
@@ -20,6 +20,30 @@ RSpec.describe "redshift" do
       client.drop_table(table_name)
     end
 
+    it "get table schema" do
+      client.drop_table(table_name)
+      sql = <<SQL
+  create table #{table_name} (
+    day timestamp,
+    day2 timestamptz,
+    id integer,
+    test varchar(22),
+    num numeric(5,2),
+    f1 float8,
+    f2 float4,
+    large_int bigint,
+    small_int smallint,
+    PRIMARY KEY(id) );
+SQL
+      client.execute(sql)
+      rows = []
+      schema = client.table_schema(table_name)
+
+      expect(schema.columns.keys).to eq(["day", "day2", "id", "test", "num", "f1", "f2", "large_int", "small_int"])
+      expect(schema.primary_key).to eq(["id"])
+    end
+
+
     it "get table columns" do
       client.drop_table(table_name)
       sql = <<SQL
@@ -32,6 +56,66 @@ SQL
         rows << r
       end
       expect(rows.to_s).to eq("[{\"column\"=>\"day\", \"type\"=>\"timestamp without time zone\"}]")
+    end
+
+    it "upsert data into one table" do
+      client.drop_table("simple_orgs")
+      create_table = <<SQL
+  create table simple_orgs (
+    id integer,
+    col2 varchar(20),
+    PRIMARY KEY(id) );
+SQL
+      client.execute(create_table)
+      data = [
+        { "id" => 1, "col2" => "value2a" },
+        { "id" => 2, "col2" => "value2b" },
+        { "id" => 3, "col2" => "value2c" },
+        { "id" => 4, "col2" => "value2c \n aghonce" }, # newline should be removed
+      ]
+      input = ETL::Input::Array.new(data)
+      client.upsert_rows(input, ["simple_orgs"])
+      r = client.execute("Select * from simple_orgs")
+      expect(r.ntuples).to eq(4)
+      sorted_values = r.values.sort_by { |value| value[0] }
+      expect(sorted_values).to eq([["1", "value2a"], ["2", "value2b"], ["3", "value2c"], ["4", "value2c   aghonce"]])
+    end
+
+    it "upsert data into two tables with splitter" do
+      client.drop_table("simple_orgs_2")
+      client.drop_table("simple_orgs_history")
+      create_table = <<SQL
+  create table simple_orgs_2 (
+    id integer,
+    col2 varchar(20),
+    PRIMARY KEY(id) );
+
+  create table simple_orgs_history (
+    h_id integer,
+    id integer,
+    PRIMARY KEY(h_id) );
+SQL
+      client.execute(create_table)
+      data = [
+        { "h_id" => 4, "id" => 1, "col2" => "value2a" },
+        { "h_id" => 5, "id" => 2, "col2" => "value2b" },
+        { "h_id" => 6, "id" => 3, "col2" => "value2c" },
+      ]
+      input = ETL::Input::Array.new(data)
+      simple_orgs_schema = client.table_schema("simple_orgs_2")
+      simple_orgs_history_schema = client.table_schema("simple_orgs_history")
+      row_splitter = ::ETL::Transform::SplitRow.SplitByTableSchemas([simple_orgs_schema, simple_orgs_history_schema])
+      client.upsert_rows(input, ["simple_orgs_2", "simple_orgs_history"], row_splitter)
+      r = client.execute("Select * from simple_orgs_2")
+      expect(r.ntuples).to eq(3)
+
+      sorted_values = r.values.sort_by { |value| value[0] }
+      expect(sorted_values).to eq([["1", "value2a"], ["2", "value2b"], ["3", "value2c"]])
+
+      r = client.execute("Select * from simple_orgs_history")
+      expect(r.ntuples).to eq(3)
+      sorted_values = r.values.sort_by { |value| value[0] }
+      expect(sorted_values).to eq([["4", "1"], ["5", "2"], ["6", "3"]])
     end
 
     it "move data by unloading and copying" do
