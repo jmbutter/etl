@@ -57,21 +57,11 @@ module ETL
           udt_name = col["udt_name"]
           sort_key = col["sortkey"]
 
-          if pk_info.include?(ordinal_pos)
-            pks << col_name.to_s
-          end
+          pks << col_name.to_s if pk_info.include?(ordinal_pos)
+          t.set_distkey(col_name) if dist_key
+          t.add_sortkey(col_name) if sort_key != "0"
 
-          if dist_key
-            t.set_distkey(col_name)
-          end
-
-          if sort_key != "0"
-            t.add_sortkey(col_name)
-          end
-
-          if udt_name == "varchar"
-            data_type = "varchar"
-          end
+          data_type = "varchar" if udt_name == "varchar"
 
           if data_type == "timestamp without time zone"
             data_type = "timestamp"
