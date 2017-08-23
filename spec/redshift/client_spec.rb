@@ -75,7 +75,8 @@ SQL
       input = ETL::Input::Array.new(data)
       client.upsert_rows(input, ["simple_orgs"])
       r = client.execute("Select * from simple_orgs")
-      expect(r.cmd_tuples).to eq(3)
+      expect(r.ntuples).to eq(3)
+      expect(r.values).to eq([["2", "value2b"], ["3", "value2c"], ["1", "value2a"]])
     end
 
 
