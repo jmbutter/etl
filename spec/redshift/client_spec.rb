@@ -68,9 +68,9 @@ SQL
 SQL
       client.execute(create_table)
       data = [
-        { "col1" => 1, "col2" => "value2a" },
-        { "col1" => 2, "col2" => "value2b" },
-        { "col1" => 3, "col2" => "value2c" },
+        { "id" => 1, "col2" => "value2a" },
+        { "id" => 2, "col2" => "value2b" },
+        { "id" => 3, "col2" => "value2c" },
       ]
       input = ETL::Input::Array.new(data)
       client.upsert_rows(input, ["simple_orgs"])

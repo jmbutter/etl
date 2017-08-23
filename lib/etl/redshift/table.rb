@@ -72,10 +72,10 @@ module ETL
           if udt_name == "varchar"
             data_type = "varchar"
           end
-          
+
           if data_type == "timestamp without time zone"
             data_type = "timestamp"
-          elsif data_type == "timestamp with time zone" 
+          elsif data_type == "timestamp with time zone"
             data_type = "timestamptz"
           end
 
@@ -115,9 +115,13 @@ module ETL
           end
 
           t.columns[col_name].nullable = nullable
+          t.columns[col_name].ordinal_pos = ordinal_pos
         end
-        
+
         t.primary_key = pks
+        # putting in ordinal order as the csv will need to be in this order
+        # this way keys are already ordered correctly.
+        t.columns = t.columns.sort_by{|_key, value| value.ordinal_pos}.to_h
         return t
       end
 

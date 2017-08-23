@@ -1,8 +1,11 @@
-require 'sequel'
+require 'tempfile'
+require 'aws-sdk'
+require 'csv'
 # removing due to ubuntu 14.04 deployment issues
 #require 'odbc'
 require 'mixins/cached_logger'
 require 'pg'
+require 'pathname'
 
 module ETL::Redshift
 
@@ -133,7 +136,7 @@ SQL
     # provided by the reader.
     def upsert_rows(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter='|')
       # write csv files
-      arr = write_csv_files(reader, destination_tables, row_splitter, row_transformers)
+      arr = write_csv_files(reader, destination_tables, row_splitter, row_transformers, delimiter)
       rows_processed = arr[0]
       file_paths = arr[1]
       table_schemas = arr[2]
@@ -147,17 +150,19 @@ SQL
 
       # upload files to s3
       creds = ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
-
-      file_paths.each do |key, fp|
+      s3_file_names = {}
+      file_paths.each do |t, fp|
+        s3_file_names[t] = File.basename(fp)
         s3_resource = Aws::S3::Resource.new(region: @region, credentials: creds)
-        s3_resource.bucket(@bucket).object(key).upload_file(fp)
+        s3_resource.bucket(@bucket).object(s3_file_names[t]).upload_file(fp)
       end
 
       destination_tables.each do |t|
         table_schema = table_schemas[t]
         tmp_table = create_staging_table(t)
         pks = table_schema.primary_key
-        s3_path = @bucket+"/"+t
+        s3_path = "#{@bucket}/#{s3_file_names[t]}"
+
         copy_from_s3(tmp_table, s3_path, delimiter)
         delete_sql = <<SQL
           DELETE FROM #{t}
@@ -184,7 +189,7 @@ SQL
       tmp_table_name
     end
 
-    def write_csv_files(reader, destination_tables, row_splitter = nil, row_transformers = [])
+    def write_csv_files(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter = '|')
       # Remove new lines ensures that all row values have newlines removed.
       row_transformers << ::ETL::Transform::RemoveNewlines.new
       table_schemas = {}
@@ -192,7 +197,7 @@ SQL
       csv_file_paths = {}
       destination_tables.each do |t|
         csv_file_paths[t] = Tempfile.new(t)
-        csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => @delimiter } )
+        csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => delimiter } )
         table_schemas[t] = table_schema(t)
 
         # Initialize the headers in csvs
@@ -213,8 +218,17 @@ SQL
           end
           rows.each do |key, split_row|
             table_schema = table_schemas[key]
-            s = table_schema.columns.map { |k, v| split_row[k.to_s] }
-            csv_files[key] << s
+
+            values_arr = []
+            table_schema.columns.keys.each do |c|
+             if split_row.has_key?(c)
+                values_arr << split_row[c]
+              else
+                values_arr << nil
+              end
+            end
+            csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
+            csv_files[key].add_row(csv_row)
           end
           rows_processed += 1
         end
