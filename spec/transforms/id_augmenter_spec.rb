@@ -12,14 +12,12 @@ end
 
 RSpec.describe "transforms" do
   it "augment id to row" do
-    id_lookup = {}
-    lookup_data = [
+    reader = [
       { "id1" => "1", "id2" => "3", "dw_id" => "4" },
       { "id1" => "2", "id2" => "2", "dw_id" => "5" },
       { "id1" => "3", "id2" => "1", "dw_id" => "6" },
     ]
-    f = ::ETL::Transform::IDAugmenterFactory.new("dw_id", ["id1", "id2"], lookup_data, Test::IDTestGenerator.new("15"))
-    id_augmenter = f.create_augmenter()
+    id_augmenter = ::ETL::Transform::IDAugmenter.new("dw_id", ["id1", "id2"], reader, Test::IDTestGenerator.new("15"))
 
     data_to_augment = [
       { "id1" => "1", "id2" => "3" },
