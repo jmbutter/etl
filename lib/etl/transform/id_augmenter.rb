@@ -10,7 +10,6 @@ module ETL::Transform
     end
     def generate_id
       @count = @count  + 1
-      @count
     end
   end
 
