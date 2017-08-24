@@ -3,6 +3,17 @@ require "securerandom"
 
 module ETL::Transform
 
+  # used for testing only
+  class IncrementingTestIDGenerator
+    def initialize(start=0)
+      @count = start
+    end
+    def generate_id
+      @count = @count  + 1
+      @count
+    end
+  end
+
   class IDUUIDGenerator
     def generate_id
       SecureRandom.uuid
@@ -10,7 +21,7 @@ module ETL::Transform
   end
 
   class IDAugmenter < Base
-    def initialize(surrogate_key, natural_keys, reader, id_generator = IDUUIDGenerator.new)
+    def initialize(surrogate_key, natural_keys, reader, id_generator)
       @natural_keys = natural_keys
       @surrogate_key = surrogate_key
       @id_generator = id_generator

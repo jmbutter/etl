@@ -114,6 +114,13 @@ module ETL::Schema
       add_column(name, sym, nil, nil, &block)
     end
 
+    def has_keys?(keys)
+      keys.each do |k|
+        return false  if !@columns.keys.include?(k)
+      end
+      true
+    end
+
     def add_primarykey(pks)
       @primary_key.push(pks)
       if pks.is_a? Array

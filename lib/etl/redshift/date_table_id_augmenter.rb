@@ -1,11 +1,10 @@
 require 'etl/core'
+require 'etl/transform/date_table_id_augmenter'
 
 module ETL::Redshift
 
   class DateTableIDAugmenter < ::ETL::Transform::DateTableIDAugmenter
-
-    def initialize(client, table_name)
-      table_schema = client.table_schema(table_name)
+    def initialize(table_schema)
       date_columns = []
       table_schema.columns.each do |key, c|
         type = case c.type

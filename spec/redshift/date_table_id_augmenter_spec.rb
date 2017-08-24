@@ -20,7 +20,7 @@ RSpec.describe "redshift id_augmenter_factory" do
         { "id" => "2", "ct" => "2020-03-31 01:15:34" },
       ]
       input = ETL::Input::Array.new(data)
-      date_table_augmenter = ::ETL::Redshift::DateTableIDAugmenter.new(client, table_name)
+      date_table_augmenter = ::ETL::Redshift::DateTableIDAugmenter.new(client.table_schema(table_name))
       client.upsert_rows(input, [table_name], nil, [date_table_augmenter], '|')
       r = client.execute("Select * from #{table_name} ORDER BY id")
       expect(r.ntuples).to eq(2)

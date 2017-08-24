@@ -1,3 +1,5 @@
+require_relative './base'
+
 module ETL::Transform
 
   class DateTableIDAugmenter < Base
