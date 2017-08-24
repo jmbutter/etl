@@ -4,8 +4,8 @@ module ETL::Redshift
   class IDAugmenter <::ETL::Transform::IDAugmenter
     def initialize(client, table_schema, natural_keys, filter_part, id_generator)
       pks = table_schema.primary_key
-      raise "Support converting multiple pks to one dw pk on #{table_name}" if pks.count > 1
-      raise "No primary key found on table #{table_name}" if pks.count == 0
+      raise "Support converting multiple pks to one dw pk on #{table_schema.name}" if pks.count > 1
+      raise "No primary key found on table #{table_schema.name}" if pks.count == 0
 
       surrogate_key = pks[0]
       query = "Select #{natural_keys.join(", ")}, #{surrogate_key} from #{table_schema.name}"
