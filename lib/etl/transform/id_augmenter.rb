@@ -9,30 +9,16 @@ module ETL::Transform
     end
   end
 
-  class IDAugmenterFactory
-    def initialize(surrogate_key, natural_keys, reader, id_generator=ETL::Transform::IDUUIDGenerator.new)
-      @natural_keys = natural_keys
-      @surrogate_key = surrogate_key
-      @reader = reader
-      @id_generator = id_generator
-    end
-
-    def create_augmenter()
-      id_lookup = {}
-      @reader.each do |row|
-        key = ::ETL::Transform::IDAugmenter.hash_natural_keys(@natural_keys, row)
-        id_lookup[key] = row[@surrogate_key]
-      end
-      ::ETL::Transform::IDAugmenter.new(@surrogate_key, @natural_keys, id_lookup, @id_generator)
-    end
-  end
-
   class IDAugmenter < Base
-    def initialize(surrogate_key, natural_keys, id_lookup, id_generator)
+    def initialize(surrogate_key, natural_keys, reader, id_generator = IDUUIDGenerator.new)
       @natural_keys = natural_keys
-      @id_lookup = id_lookup
       @surrogate_key = surrogate_key
       @id_generator = id_generator
+      @id_lookup = {}
+      reader.each do |row|
+        key = ::ETL::Transform::IDAugmenter.hash_natural_keys(@natural_keys, row)
+        @id_lookup[key] = row[@surrogate_key]
+      end
     end
 
     def self.hash_natural_keys(columns, row)
