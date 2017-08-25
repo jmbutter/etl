@@ -4,7 +4,7 @@ module ETL
 
     # Represents single data table in redshift
     class Table < ETL::Schema::Table
-      attr_accessor :backup, :dist_key, :sort_keys, :dist_style
+      attr_accessor :backup, :dist_key, :sort_keys, :dist_style, :identity_key
 
       def initialize(name="", opts = {})
         super(name, opts)

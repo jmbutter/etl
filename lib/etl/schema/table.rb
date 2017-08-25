@@ -114,6 +114,21 @@ module ETL::Schema
       add_column(name, sym, nil, nil, &block)
     end
 
+    def date_columns
+      date_columns = []
+      columns.each do |key, c|
+        type = case c.type
+        when :timestamp
+          date_columns << key
+        when :date
+          date_columns << key
+        when :datetz
+          date_columns << key
+        end
+      end
+      date_columns
+    end
+
     def has_keys?(keys)
       keys.each do |k|
         return false  if !@columns.keys.include?(k)

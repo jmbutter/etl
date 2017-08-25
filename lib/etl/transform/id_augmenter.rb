@@ -20,14 +20,15 @@ module ETL::Transform
   end
 
   class IDAugmenter < Base
-    def initialize(surrogate_key, natural_keys, reader, id_generator)
+    def initialize(surrogate_key, natural_keys, reader, id_lookup)
       @natural_keys = natural_keys
       @surrogate_key = surrogate_key
-      @id_generator = id_generator
-      @id_lookup = {}
-      reader.each do |row|
-        key = ::ETL::Transform::IDAugmenter.hash_natural_keys(@natural_keys, row)
-        @id_lookup[key] = row[@surrogate_key]
+      @id_lookup = id_lookup
+      if !reader.nil?
+        reader.each do |row|
+          key = ::ETL::Transform::IDAugmenter.hash_natural_keys(@natural_keys, row)
+          @id_lookup[key] = row
+        end
       end
     end
 
@@ -41,9 +42,8 @@ module ETL::Transform
 
     def transform(row)
       hashed_key = self.class.hash_natural_keys(@natural_keys, row)
-      found_key = @id_lookup[hashed_key] if @id_lookup.has_key?(hashed_key)
-      found_key = @id_generator.generate_id if found_key.nil?
-      row[@surrogate_key] = found_key
+      found_key = @id_lookup[hashed_key][@surrogate_key] if @id_lookup.has_key?(hashed_key)
+      row[@surrogate_key] = found_key if !found_key.nil?
       row
     end
   end

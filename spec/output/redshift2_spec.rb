@@ -19,8 +19,9 @@ RSpec.describe "redshift2" do
 
       # Add the tables
       table = ETL::Redshift::Table.new(table_name)
+      table.int(:h_id)
       table.string(:dw_id)
-      table.add_primarykey(:dw_id)
+      table.set_identity(:h_id)
       client.create_table(table)
 
       table2 = ETL::Redshift::Table.new(table_name_2)

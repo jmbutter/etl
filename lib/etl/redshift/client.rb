@@ -42,6 +42,7 @@ module ETL::Redshift
     end
 
     def execute(sql)
+      puts sql
       log.debug("SQL: '#{sql}'")
       db.exec(sql)
     end
@@ -133,9 +134,9 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter='|')
+    def upsert_rows(reader, destination_tables, transformer, delimiter='|')
       # write csv files
-      arr = write_csv_files(reader, destination_tables, row_splitter, row_transformers, delimiter)
+      arr = write_csv_files(reader, destination_tables, transformer, delimiter)
       rows_processed = arr[0]
       file_paths = arr[1]
       table_schemas = arr[2]
@@ -188,7 +189,7 @@ SQL
       tmp_table_name
     end
 
-    def write_csv_files(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter = '|')
+    def write_csv_files(reader, destination_tables, row_transformer, delimiter = '|')
       # Remove new lines ensures that all row values have newlines removed.
       row_transformers << ::ETL::Transform::RemoveNewlines.new
       table_schemas = {}
@@ -198,38 +199,45 @@ SQL
         csv_file_paths[t] = Tempfile.new(t)
         csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => delimiter } )
         table_schemas[t] = table_schema(t)
-
-        # Initialize the headers in csvs
-        raise "Table '#{t}' does not have a primary key" unless table_schemas[t].primary_key.count > 0
       end
-      
+
       rows_processed = 0
       begin
         reader.each_row do |row|
-          row_transformers.each do |tf|
-            row = tf.transform(row)
-          end
-          if !row_splitter.nil?
-            rows = row_splitter.transform(row)
+          row = transformer.transform(row)
+          if row.is_a? Hash
+            # its a row that has been split
+            rows = row
           else
-            raise "Expected only 1 destination table as no row splitter is used" if destination_tables.count > 1
             rows = {destination_tables[0] => row}
           end
+          raise "Number of split rows #{rows.count} doesn't match number of destination tables #{destination_tables.count}" if destination_tables.count != rows.count
+
           rows.each do |key, split_row|
             table_schema = table_schemas[key]
+            identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
 
             values_arr = []
-            table_schema.columns.keys.each do |c|
-             if split_row.has_key?(c)
-                values_arr << split_row[c]
-              else
-                values_arr << nil
-              end
+            split_rows = []
+            if split_row.is_a? Array
+              split_rows = split_row
+            else
+              split_rows = [split_row]
             end
-            csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
-            csv_files[key].add_row(csv_row)
+            split_rows.each do |r|
+              table_schema.columns.keys.each do |c|
+                if identity_key_name == c
+                  next
+                end
+                if split_row.has_key?(c)
+                  values_arr << split_row[c]
+                end
+              end
+              csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
+              csv_files[key].add_row(csv_row)
+              rows_processed += 1
+            end
           end
-          rows_processed += 1
         end
       ensure
         destination_tables.each do |t|
