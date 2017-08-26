@@ -42,7 +42,6 @@ module ETL::Redshift
     end
 
     def execute(sql)
-      puts sql
       log.debug("SQL: '#{sql}'")
       db.exec(sql)
     end
@@ -134,19 +133,18 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, destination_tables, transformer, delimiter='|')
+    def upsert_rows(reader, table_schemas_lookup, transformer, delimiter='|')
       # write csv files
-      arr = write_csv_files(reader, destination_tables, transformer, delimiter)
+      arr = write_csv_files(reader, table_schemas_lookup, transformer, delimiter)
       rows_processed = arr[0]
       file_paths = arr[1]
-      table_schemas = arr[2]
 
       if rows_processed == 0
         log.warn("No rows processed")
         return rows_processed
       end
 
-      tmp_session = destination_tables.join("_") + @random_key
+      tmp_session = table_schemas_lookup.keys.join("_") + @random_key
 
       # upload files to s3
       creds = ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
@@ -157,8 +155,7 @@ SQL
         s3_resource.bucket(@bucket).object(s3_file_names[t]).upload_file(fp)
       end
 
-      destination_tables.each do |t|
-        table_schema = table_schemas[t]
+      table_schemas_lookup.each do |t, table_schema|
         tmp_table = create_staging_table(t)
         pks = table_schema.primary_key
         s3_path = "#{@bucket}/#{s3_file_names[t]}"
@@ -189,32 +186,37 @@ SQL
       tmp_table_name
     end
 
-    def write_csv_files(reader, destination_tables, row_transformer, delimiter = '|')
+    def write_csv_files(reader, table_schemas_lookup, row_transformer, delimiter = '|')
       # Remove new lines ensures that all row values have newlines removed.
-      row_transformers << ::ETL::Transform::RemoveNewlines.new
-      table_schemas = {}
+      remove_new_lines = ::ETL::Transform::RemoveNewlines.new
+      row_transformers = [remove_new_lines]
+      row_transformers << row_transformer if !row_transformer.nil?
+
       csv_files = {}
       csv_file_paths = {}
-      destination_tables.each do |t|
+
+      table_schemas_lookup.keys.each do |t|
         csv_file_paths[t] = Tempfile.new(t)
         csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => delimiter } )
-        table_schemas[t] = table_schema(t)
       end
 
       rows_processed = 0
       begin
         reader.each_row do |row|
-          row = transformer.transform(row)
-          if row.is_a? Hash
-            # its a row that has been split
-            rows = row
-          else
-            rows = {destination_tables[0] => row}
+          row_transformers.each do |t|
+            row = t.transform(row)
           end
-          raise "Number of split rows #{rows.count} doesn't match number of destination tables #{destination_tables.count}" if destination_tables.count != rows.count
+
+          is_named_rows = false
+          raise "Row is not a Hash type, #{row.inspect}" if !row.is_a? Hash
+          if row.has_key?(table_schemas_lookup.keys[0])
+              rows = row
+          else
+            rows = { table_schemas_lookup.keys[0] => row }
+          end
 
           rows.each do |key, split_row|
-            table_schema = table_schemas[key]
+            table_schema = table_schemas_lookup[key]
             identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
 
             values_arr = []
@@ -229,8 +231,9 @@ SQL
                 if identity_key_name == c
                   next
                 end
-                if split_row.has_key?(c)
-                  values_arr << split_row[c]
+
+                if r.has_key?(c)
+                  values_arr << r[c]
                 end
               end
               csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
@@ -240,11 +243,11 @@ SQL
           end
         end
       ensure
-        destination_tables.each do |t|
+        table_schemas_lookup.keys.each do |t|
           csv_files[t].close()
         end
       end
-      [rows_processed, csv_file_paths, table_schemas]
+      [rows_processed, csv_file_paths]
     end
   end
 end

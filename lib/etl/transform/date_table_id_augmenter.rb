@@ -11,6 +11,8 @@ module ETL::Transform
     def transform(row)
       @date_columns.each do |dc|
         date_value = row[dc]
+        next if date_value.nil?
+
         if date_value.is_a? String
           date_value = DateTime.parse(date_value)
         end

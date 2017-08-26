@@ -1,4 +1,5 @@
 require 'etl/core'
+require 'etl/cache/base'
 
 RSpec.describe "transforms" do
   it "augment id to row" do
@@ -7,7 +8,9 @@ RSpec.describe "transforms" do
       { "id1" => "2", "id2" => "2", "dw_id" => "5" },
       { "id1" => "3", "id2" => "1", "dw_id" => "6" },
     ]
-    id_augmenter = ::ETL::Transform::IDAugmenter.new("dw_id", ["id1", "id2"], reader, ::ETL::Transform::IncrementingTestIDGenerator.new(14))
+    cache = ::ETL::Cache::Base.new(["id1", "id2"])
+    cache.fill(reader)
+    id_augmenter = ::ETL::Transform::SurrogateIDAugmenter.new("dw_id", nil, ["id1", "id2"], cache)
 
     data_to_augment = [
       { "id1" => "1", "id2" => "3" },
@@ -26,7 +29,7 @@ RSpec.describe "transforms" do
     expect(updated_data).to eq([{"id1"=>"1", "id2"=>"3", "dw_id"=>"4"},
                                 {"id1"=>"2", "id2"=>"2", "dw_id"=>"5"},
                                 {"id1"=>"3", "id2"=>"1", "dw_id"=>"6"},
-                                {"id1"=>"4", "id2"=>"10", "dw_id"=>15}])
+                                {"id1"=>"4", "id2"=>"10"}])
   end
 end
 

@@ -7,7 +7,7 @@ module ETL::Redshift
     def initialize(table_schemas)
       date_columns = []
       table_schemas.each do |ts|
-        ts.date_columns { |key| date_columns << key }
+        ts.date_columns.each { |key| date_columns << key }
       end
       super(date_columns)
     end
