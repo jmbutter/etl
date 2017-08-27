@@ -1,6 +1,6 @@
 require 'etl/redshift/client'
 require 'etl/redshift/table'
-require 'etl/redshift/column_augmenter'
+require 'etl/redshift/column_value_augmenter'
 require 'etl/core'
 
 module Test
@@ -28,6 +28,8 @@ RSpec.describe "redshift column_augmenter" do
       table.string(:id)
       table.string(:dw_id)
       table.string(:info)
+      table.date(:created_at)
+      table.date(:ended_at)
       table.add_primarykey(:dw_id)
       client.create_table(table)
       data = [
@@ -39,7 +41,7 @@ RSpec.describe "redshift column_augmenter" do
       # insert test data
       client.execute("INSERT INTO #{table_name} (dw_id, id, info) VALUES ('6', '1', 'bar')")
 
-      column_augmenter = ::ETL::Redshift::ColumnAugmenter.new(client, table_schema, "dw_id", ["id"],  ["info"], nil)
+      column_augmenter = ::ETL::Redshift::ColumnValueAugmenter.new(client, table_schema, ["dw_id"], ["id"], ["info"], nil)
       # Wrapping the column augmenter so that rows that don't have dw_id's set will get values
       augmenter = Test::Augmenter.new(column_augmenter)
       client.upsert_rows(input, {table_schema.name => table_schema}, augmenter, '|')
@@ -47,8 +49,8 @@ RSpec.describe "redshift column_augmenter" do
       r = client.execute("Select * from #{table_name} ORDER BY dw_id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"2", "dw_id"=>"11", "info"=>"other"},
-                             {"id"=>"1", "dw_id"=>"6", "info"=>"foo"}])
+      expect(values).to eq([{"id"=>"2", "dw_id"=>"11", "info"=>"other", "created_at"=>nil, "ended_at"=>nil},
+                            {"id"=>"1", "dw_id"=>"6", "info"=>"foo", "created_at"=>nil, "ended_at"=>nil}])
       client.drop_table(table_name)
     end
   end

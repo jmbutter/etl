@@ -15,6 +15,7 @@ class IncrementingTestIDGenerator
   end
   def generate_id
     @count = @count  + 1
+    @count.to_s
   end
 end
 
@@ -27,7 +28,7 @@ class TestCurrentDateTimeGenerator
     @day = 10
   end
   def now
-    DateTime.new(@year,@month,@day,4,5,6).iso8601
+    DateTime.new(@year,@month,@day,4,5,6)
   end
 end
 
@@ -51,15 +52,15 @@ def orgs_history_table
   table2.string(:dw_id)
   table2.string(:id)
   table2.string(:bento)
-  table2.date(:start_date)
-  table2.date(:end_date)
+  table2.date(:created_at)
+  table2.date(:ended_at)
   table2.boolean(:current)
   table2.add_primarykey(:h_id)
   table2
 end
 
 RSpec.describe "redshift2" do
-  before :all do
+  before do
     ::Helper.client.drop_table(orgs_table.name)
     ::Helper.client.drop_table(orgs_history_table.name)
     ::Helper.client.create_table(orgs_table)
@@ -68,11 +69,12 @@ RSpec.describe "redshift2" do
   let(:client) {  ::Helper.client }
   let(:table_name) { orgs_table.name }
   let(:table_name_2) { orgs_history_table.name }
+  let(:date) { DateTime.new(2001,5,10,4,5,6) }
   context "Test redshift2 can upsert data to a data and history table multiple table" do
     it "augment a row with surrogate key" do
 
       # Adding data so that when data comes in it will find this pre-existing id
-      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, start_date, current) VALUES ('1','3','4', '2017-5-22', true )")
+      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, created_at, bento, current) VALUES ('1','3','4', '2017.5.22', 'c', true )")
       data = [
         { "id" => "4", "info" => "bar", "bento" => "a" },
         { "id" => "5", "info" => "foo", "bento" => "b" },
@@ -85,10 +87,12 @@ RSpec.describe "redshift2" do
       output.reader = input
       result = output.run
 
-      r = client.execute("Select * from #{table_name_2} ORDER BY dw_id")
+      r = client.execute("Select * from #{table_name_2} ORDER BY h_id")
       values = []
       r.each { |h| values << h }
-      expect(r.values).to eq([])
+      expect(r.values).to eq([["1", "3", "4", "a", "2017-05-22", '2001-05-10', "f"],
+                              ["6", "3", "4", "a", "2001-05-10", nil, "t"],
+                              ["7", "8", "5", "b", "2001-05-10", nil, "t"]])
     end
   end
   
@@ -99,14 +103,16 @@ RSpec.describe "redshift2" do
       date_time_gen = TestCurrentDateTimeGenerator.new
       t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new, orgs, orgs_history, date_time_gen)
       created_row = t.transform({"id" => "4", "bento" => "app1a", "info" => "info1"})
-      expect(created_row).to eq({"test_orgs"=>{"info"=>"info1", "dw_id"=>2 }, "test_orgs_history"=>{"id"=>"4", "bento"=>"app1a", "h_id"=>1, "dw_id"=>2, "current"=>true, "created_at"=>"2001-05-10T04:05:06+00:00"}})
+      expect(created_row).to eq({
+        "test_orgs"=>{"info"=>"info1", "dw_id"=>"2" },
+        "test_orgs_history"=>{"id"=>"4", "bento"=>"app1a", "h_id"=>"1", "dw_id"=>"2", "current"=>true, "created_at" => date }})
     end
 
     it "Non slowly changing dimension change should only have a change to the data table" do
       orgs = client.table_schema(table_name)
       orgs_history = client.table_schema(table_name_2)
       date_time_gen = TestCurrentDateTimeGenerator.new
-      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, bento, start_date, current) VALUES ('11', '13', '18', 'app1a', '2001-05-10T04:05:06+00:00', true)")
+      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, bento, created_at, current) VALUES ('11', '13', '18', 'app1a', '2001-05-10T04:05:06+00:00', true)")
       t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new, orgs, orgs_history, date_time_gen)
       created_row = t.transform({"id" => "18", "bento" => "app1a", "info" => "info1"})
       expect(created_row).to eq({"test_orgs"=>{"dw_id"=>"13", "info"=>"info1"}})
@@ -115,15 +121,15 @@ RSpec.describe "redshift2" do
     it "A Change to the slowly changing dimension should produce a new row for history and update the existing one" do
       orgs = client.table_schema(table_name)
       orgs_history = client.table_schema(table_name_2)
-      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, bento, start_date, current) VALUES ('10', '12', '5', 'app1a', '2001-05-10T04:05:06+00:00', true)")
+      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, bento, created_at, current) VALUES ('10', '12', '5', 'app1a', '2001-05-10T04:05:06+00:00', true)")
       date_time_gen = TestCurrentDateTimeGenerator.new
       t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new(10), orgs, orgs_history, date_time_gen)
       created_row = t.transform({"id" => "5", "bento" => "app1b"})
       expect(created_row).to eq({
         "test_orgs"=>{"dw_id"=>"12"},
         "test_orgs_history"=>[
-          {"h_id"=>"10", "dw_id"=>"12", "id"=>"5", "bento"=>"app1b", "current"=>false, "ended_at"=>"2001-05-10T04:05:06+00:00"},
-          {"h_id"=>11, "dw_id"=>"12", "id"=>"5", "bento"=>"app1b", "current"=>true, "started_at"=>"2001-05-10T04:05:06+00:00"}
+          {"h_id"=>"10", "dw_id"=>"12", "id"=>"5", "bento"=>"app1b", "created_at" => "2001-05-10", "ended_at" => date, "current"=>false },
+          {"h_id"=>"11", "dw_id"=>"12", "id"=>"5", "bento"=>"app1b", "created_at" => date, "ended_at" => nil, "current"=>true}
         ]})
     end
   end

@@ -1,7 +1,7 @@
 require_relative '../redshift/client'
 require_relative '../redshift/table'
 require_relative '../redshift/date_table_id_augmenter'
-require_relative '../redshift/column_augmenter'
+require_relative '../redshift/column_value_augmenter'
 
 module ETL::Output
 
@@ -30,13 +30,11 @@ module ETL::Output
       main_table_schema = @client.table_schema(@main_table_name)
       table_schemas_lookup = { main_table_schema.name => main_table_schema }
 
-      puts "main_table: #{main_table_schema.inspect}"
       if @history_table_name.nil?
         # TODO: Will need to make improvements here but should work for now.
         transformer = ::ETL::Redshift::DateTableIDAugmenter.new(table_schemas)
       else
         history_table_schema = @client.table_schema(@history_table_name)
-        puts main_table_schema.inspect 
         transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
         table_schemas_lookup[history_table_schema.name] = history_table_schema
       end
@@ -76,8 +74,7 @@ module ETL::Output
 
       date_table_id_augmenter = ::ETL::Redshift::DateTableIDAugmenter.new(table_schemas_lookup.values)
       row = date_table_id_augmenter.transform(row)
-      puts "scd #{@scd_columns.inspect}"
-      column_augmenter = ::ETL::Redshift::ColumnAugmenter.new(@client, @history_table_schema, @surrogate_key, @natural_keys, @scd_columns, nil)
+      column_augmenter = ::ETL::Redshift::ColumnValueAugmenter.new(@client, @history_table_schema, @surrogate_key, @natural_keys, @scd_columns, nil)
       row = column_augmenter.transform(row)
 
       row_splitter = ::ETL::Transform::SplitRow.SplitByTableSchemas(table_schemas_lookup.values)
@@ -88,9 +85,7 @@ module ETL::Output
       main_table_surrogate_key = @main_table_schema.primary_key[0]
       history_table_key = @history_table_schema.primary_key[0]
       # If no surrogate key exists then none was found so its new.
-      puts "named rows: #{named_rows.inspect}"
       if !named_rows[@main_table_schema.name].has_key?(main_table_surrogate_key)
-        puts "new_row found"
         # This is a new row so need the following
         #    a. new row for orgs
         #    b. new row for orgs_history
@@ -111,12 +106,12 @@ module ETL::Output
           end
         end
 
-        puts "SCD: #{scd_changed}"
         if scd_changed
-            # When a slowly changing dimension hash changed the following needs to occur
+          # When a slowly changing dimension hash changed the following needs to occur
             #    a. update current history row to not be current and add end_date
             #    b. add new row for history with the start time to now and it being current.
             existing_history_row = named_rows[@history_table_schema.name]
+            puts "existing: #{existing_history_row.inspect}"
             new_history_row = existing_history_row.clone
             existing_history_row = named_rows[@history_table_schema.name]
             existing_history_row["current"] = false
@@ -125,7 +120,7 @@ module ETL::Output
             new_history_id = @id_generator.generate_id
             new_history_row[history_table_key] = new_history_id
             new_history_row["current"] = true
-            new_history_row["started_at"] = @now_generator.now
+            new_history_row["created_at"] = @now_generator.now
             named_rows[@history_table_schema.name] = [existing_history_row, new_history_row]
         else
           named_rows.delete(@history_table_schema.name)
@@ -137,7 +132,7 @@ module ETL::Output
 
   class CurrentDateTimeGenerator
     def now
-      DateTime.now.iso8601
+      DateTime.now
     end
   end
 

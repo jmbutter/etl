@@ -219,7 +219,6 @@ SQL
             table_schema = table_schemas_lookup[key]
             identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
 
-            values_arr = []
             split_rows = []
             if split_row.is_a? Array
               split_rows = split_row
@@ -227,6 +226,7 @@ SQL
               split_rows = [split_row]
             end
             split_rows.each do |r|
+              values_arr = []
               table_schema.columns.keys.each do |c|
                 if identity_key_name == c
                   next
@@ -234,6 +234,8 @@ SQL
 
                 if r.has_key?(c)
                   values_arr << r[c]
+                else
+                  values_arr << nil
                 end
               end
               csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
