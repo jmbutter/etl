@@ -59,7 +59,7 @@ module ETL::Schema
       @columns[name.to_s] = t
       yield t if block_given?
     end
-    
+
     def datetz(name, &block)
       add_column(name, :datetz, nil, nil, &block)
     end
@@ -134,6 +134,20 @@ module ETL::Schema
         return false  if !@columns.keys.include?(k)
       end
       true
+    end
+
+    def add_fk(col, ref_table, ref_col)
+      raise "No column with name #{col.to_s} exists" if !@columns.has_key?(col.to_s)
+
+      @columns[col.to_s].set_fk(ref_col.to_s, ref_table.to_s)
+    end
+
+    def fks
+      fks = []
+      @columns.each do |key, value|
+        fks << key if value.fk != nil
+      end
+      fks
     end
 
     def add_primarykey(pks)

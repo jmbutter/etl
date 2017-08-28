@@ -11,13 +11,25 @@ RSpec.describe "redshift" do
     let(:s3_destination) { "#{bucket}/#{table_name}_#{random_key}" }
     it "connect and create and delete a table" do
       client.drop_table(table_name)
+      other_table = ETL::Redshift::Table.new(:other_table)
+      other_table.int("id")
+      other_table.add_primarykey("id")
+      
       table = ETL::Redshift::Table.new(table_name, { backup: false, dist_style: 'All'})
       table.string("name")
       table.int("id")
+      table.int("fk_id")
+      table.add_fk(:fk_id, "other_table", "id")
       table.add_primarykey("id")
-
+      
+      client.create_table(other_table)
       client.create_table(table)
+      
+      found_table = client.table_schema(table_name)
+      expect(found_table.fks).to eq(["fk_id"])
+      expect(found_table.columns["fk_id"].fk).to eq({:column => "id", :table => "other_table" })
       client.drop_table(table_name)
+      client.drop_table("other_table")
     end
 
     it "get table schema" do
