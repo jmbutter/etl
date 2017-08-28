@@ -74,7 +74,8 @@ SQL
         { "id" => 4, "col2" => "value2c \n aghonce" }, # newline should be removed
       ]
       input = ETL::Input::Array.new(data)
-      client.upsert_rows(input, ["simple_orgs"])
+      simple_orgs_schema = client.table_schema("simple_orgs_2")
+      client.upsert_rows(input, { "simple_orgs" => simple_orgs_schema }, nil, '|')
       r = client.execute("Select * from simple_orgs")
       expect(r.ntuples).to eq(4)
       sorted_values = r.values.sort_by { |value| value[0] }
@@ -105,7 +106,7 @@ SQL
       simple_orgs_schema = client.table_schema("simple_orgs_2")
       simple_orgs_history_schema = client.table_schema("simple_orgs_history")
       row_splitter = ::ETL::Transform::SplitRow.SplitByTableSchemas([simple_orgs_schema, simple_orgs_history_schema])
-      client.upsert_rows(input, ["simple_orgs_2", "simple_orgs_history"], row_splitter)
+      client.upsert_rows(input, {"simple_orgs_2" => simple_orgs_schema, "simple_orgs_history" => simple_orgs_history_schema}, row_splitter)
       r = client.execute("Select * from simple_orgs_2")
       expect(r.ntuples).to eq(3)
 
@@ -135,9 +136,6 @@ SQL
       client.drop_table(target_table)
       sql = "create table #{target_table} (day datetime NOT NULL, attribute varchar(100), PRIMARY KEY (day));"
       client.execute(sql)
-
-      client.region = ETL.config.aws[:etl][:region]
-      client.iam_role = ETL.config.aws[:etl][:role_arn]
 
       client.unload_to_s3("select * from #{table_name}", s3_destination)
       client.copy_from_s3(target_table, s3_destination)

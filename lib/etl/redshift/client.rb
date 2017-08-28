@@ -133,19 +133,18 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter='|')
+    def upsert_rows(reader, table_schemas_lookup, transformer, delimiter='|')
       # write csv files
-      arr = write_csv_files(reader, destination_tables, row_splitter, row_transformers, delimiter)
+      arr = write_csv_files(reader, table_schemas_lookup, transformer, delimiter)
       rows_processed = arr[0]
       file_paths = arr[1]
-      table_schemas = arr[2]
 
       if rows_processed == 0
         log.warn("No rows processed")
         return rows_processed
       end
 
-      tmp_session = destination_tables.join("_") + @random_key
+      tmp_session = table_schemas_lookup.keys.join("_") + @random_key
 
       # upload files to s3
       creds = ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
@@ -156,8 +155,7 @@ SQL
         s3_resource.bucket(@bucket).object(s3_file_names[t]).upload_file(fp)
       end
 
-      destination_tables.each do |t|
-        table_schema = table_schemas[t]
+      table_schemas_lookup.each do |t, table_schema|
         tmp_table = create_staging_table(t)
         pks = table_schema.primary_key
         s3_path = "#{@bucket}/#{s3_file_names[t]}"
@@ -188,55 +186,70 @@ SQL
       tmp_table_name
     end
 
-    def write_csv_files(reader, destination_tables, row_splitter = nil, row_transformers = [], delimiter = '|')
+    def write_csv_files(reader, table_schemas_lookup, row_transformer, delimiter = '|')
       # Remove new lines ensures that all row values have newlines removed.
-      row_transformers << ::ETL::Transform::RemoveNewlines.new
-      table_schemas = {}
+      remove_new_lines = ::ETL::Transform::RemoveNewlines.new
+      row_transformers = [remove_new_lines]
+      row_transformers << row_transformer if !row_transformer.nil?
+
       csv_files = {}
       csv_file_paths = {}
-      destination_tables.each do |t|
+
+      table_schemas_lookup.keys.each do |t|
         csv_file_paths[t] = Tempfile.new(t)
         csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => delimiter } )
-        table_schemas[t] = table_schema(t)
-
-        # Initialize the headers in csvs
-        raise "Table '#{t}' does not have a primary key" unless table_schemas[t].primary_key.count > 0
       end
-      
+
       rows_processed = 0
       begin
         reader.each_row do |row|
-          row_transformers.each do |tf|
-            row = tf.transform(row)
+          row_transformers.each do |t|
+            row = t.transform(row)
           end
-          if !row_splitter.nil?
-            rows = row_splitter.transform(row)
-          else
-            raise "Expected only 1 destination table as no row splitter is used" if destination_tables.count > 1
-            rows = {destination_tables[0] => row}
-          end
-          rows.each do |key, split_row|
-            table_schema = table_schemas[key]
 
-            values_arr = []
-            table_schema.columns.keys.each do |c|
-             if split_row.has_key?(c)
-                values_arr << split_row[c]
-              else
-                values_arr << nil
-              end
-            end
-            csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
-            csv_files[key].add_row(csv_row)
+          is_named_rows = false
+          raise "Row is not a Hash type, #{row.inspect}" if !row.is_a? Hash
+          if row.has_key?(table_schemas_lookup.keys[0])
+              rows = row
+          else
+            rows = { table_schemas_lookup.keys[0] => row }
           end
-          rows_processed += 1
+
+          rows.each do |key, split_row|
+            table_schema = table_schemas_lookup[key]
+            identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
+
+            split_rows = []
+            if split_row.is_a? Array
+              split_rows = split_row
+            else
+              split_rows = [split_row]
+            end
+            split_rows.each do |r|
+              values_arr = []
+              table_schema.columns.keys.each do |c|
+                if identity_key_name == c
+                  next
+                end
+
+                if r.has_key?(c)
+                  values_arr << r[c]
+                else
+                  values_arr << nil
+                end
+              end
+              csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
+              csv_files[key].add_row(csv_row)
+              rows_processed += 1
+            end
+          end
         end
       ensure
-        destination_tables.each do |t|
+        table_schemas_lookup.keys.each do |t|
           csv_files[t].close()
         end
       end
-      [rows_processed, csv_file_paths, table_schemas]
+      [rows_processed, csv_file_paths]
     end
   end
 end
