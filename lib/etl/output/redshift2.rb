@@ -21,12 +21,12 @@ module ETL::Output
       @scd_columns = scd_columns
       @id_generator = id_generator || IDUUIDGenerator.new
       @now_generator = ::ETL::Output::CurrentDateTimeGenerator.new
+      raise "main_table_name must not be empty" if @main_table_name.empty?
+
     end
 
     # Runs the ETL job
     def run_internal
-      raise "main_table_name must not be empty" if @main_table_name.empty?
-
       main_table_schema = @client.table_schema(@main_table_name)
       table_schemas_lookup = { main_table_schema.name => main_table_schema }
 
@@ -87,8 +87,8 @@ module ETL::Output
       # If no surrogate key exists then none was found so its new.
       if !named_rows[@main_table_schema.name].has_key?(main_table_surrogate_key)
         # This is a new row so need the following
-        #    a. new row for orgs
-        #    b. new row for orgs_history
+        #    a. new row for main table
+        #    b. new row for history table
         new_history_id = @id_generator.generate_id
         new_surrogate_id = @id_generator.generate_id
         named_rows[@main_table_schema.name][main_table_surrogate_key] = new_surrogate_id
@@ -111,7 +111,6 @@ module ETL::Output
             #    a. update current history row to not be current and add end_date
             #    b. add new row for history with the start time to now and it being current.
             existing_history_row = named_rows[@history_table_schema.name]
-            puts "existing: #{existing_history_row.inspect}"
             new_history_row = existing_history_row.clone
             existing_history_row = named_rows[@history_table_schema.name]
             existing_history_row["current"] = false
