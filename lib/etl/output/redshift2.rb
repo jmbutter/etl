@@ -8,7 +8,7 @@ module ETL::Output
   # new Redshift outputter that defers logic to client
   class Redshift2 < Base
     include ETL::CachedLogger
-    attr_accessor :now_generator, :id_generator, :delimiter
+    attr_accessor :now_generator, :id_generator, :delimiter, :pre_transformer
     
     def initialize(client, main_table_name, optional_history_table_name, surrogate_key, natural_keys, scd_columns)
       super()
@@ -22,26 +22,50 @@ module ETL::Output
       @id_generator = id_generator || IDUUIDGenerator.new
       @now_generator = ::ETL::Output::CurrentDateTimeGenerator.new
       raise "main_table_name must not be empty" if @main_table_name.empty?
+    end
 
+    def build_transformer(table_schemas_lookup)
+      transformers = []
+      transformers << pre_transformer if !@pre_transformer.nil?
+
+      if @history_table_name.nil?
+        # TODO: Will need to make improvements here but should work for now.
+        transformers << ::ETL::Redshift::DateTableIDAugmenter.new(table_schemas_lookup.values)
+      else
+        main_table_schema = table_schemas_lookup[@main_table_name]
+        history_table_schema = table_schemas_lookup[@history_table_name]
+        transformers << transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
+      end
+      MultiTransformer.new(transformers)
     end
 
     # Runs the ETL job
     def run_internal
       main_table_schema = @client.table_schema(@main_table_name)
       table_schemas_lookup = { main_table_schema.name => main_table_schema }
-
-      if @history_table_name.nil?
-        # TODO: Will need to make improvements here but should work for now.
-        transformer = ::ETL::Redshift::DateTableIDAugmenter.new(table_schemas)
-      else
+      if !@history_table_name.nil?
         history_table_schema = @client.table_schema(@history_table_name)
-        transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
         table_schemas_lookup[history_table_schema.name] = history_table_schema
       end
+
+      transformer = build_transformer(table_schemas_lookup)
 
       rows_processed = @client.upsert_rows(reader, table_schemas_lookup, transformer)
       msg = "Processed #{rows_processed} input rows for #{main_table_schema.name}"
       ::ETL::Job::Result.success(rows_processed, msg)
+    end
+  end
+
+  class MultiTransformer
+    def initialize(transformers = [])
+      @transformers = transformers
+    end
+
+    def transform(row)
+      @transformers.each do |t|
+        row = t.transform(row)
+      end
+      row
     end
   end
 
