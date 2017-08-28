@@ -41,7 +41,7 @@ module ETL
         default
       end
 
-      def self.from_schema(table_name, columns_info, pk_info)
+      def self.from_schema(table_name, columns_info, pk_info, fks)
         t = Table.new(table_name)
         pks = []
         sort_key = nil
@@ -109,6 +109,12 @@ module ETL
           t.columns[col_name].ordinal_pos = ordinal_pos
         end
 
+        if !fks.nil?
+          fks.each do |fk|
+            t.add_fk(fk["source_column"], fk["target_table"], fk["target_column"])
+          end
+        end
+
         t.primary_key = pks
         # putting in ordinal order as the csv will need to be in this order
         # this way keys are already ordered correctly.
@@ -134,6 +140,7 @@ module ETL
           column_statement = "\"#{name}\" #{column_type}"
           column_statement += " IDENTITY(#{@identity_key[:seed]}, #{@identity_key[:step]})" if !@identity_key.empty? && @identity_key[:column] == name.to_sym
           column_statement += " NOT NULL" if !column.nullable
+          column_statement += " REFERENCES #{column.fk[:table]}(#{column.fk[:column]})" if column.fk != nil
           type_ary << column_statement
         end
 
