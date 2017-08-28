@@ -26,7 +26,7 @@ module ETL::Output
 
     def build_transformer(table_schemas_lookup)
       transformers = []
-      transformers << pre_transformer if !@pre_transformer.nil?
+      transformers << @pre_transformer if !@pre_transformer.nil?
 
       if @history_table_name.nil?
         # TODO: Will need to make improvements here but should work for now.

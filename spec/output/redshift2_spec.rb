@@ -8,7 +8,12 @@ end
 def rspec_redshift_params
   ETL.config.redshift[:test]
 end
-
+class TestTransformer
+  def transform(row)
+    row["added"] = "Hit"
+    row
+  end
+end
 class IncrementingTestIDGenerator
   def initialize(start=0)
     @count = start
@@ -42,6 +47,7 @@ def orgs_table
   table = ETL::Redshift::Table.new("test_orgs")
   table.string(:dw_id)
   table.string(:info)
+  table.string(:added)
   table.add_primarykey(:dw_id)
   table
 end
@@ -85,7 +91,13 @@ RSpec.describe "redshift2" do
       output.id_generator = IncrementingTestIDGenerator.new(5)
       output.now_generator = TestCurrentDateTimeGenerator.new
       output.reader = input
+      output.pre_transformer = TestTransformer.new
       result = output.run
+      
+      r = client.execute("Select * from #{table_name} ORDER BY dw_id")
+      values = []
+      r.each { |h| values << h }
+      expect(r.values).to eq([["3", "bar", "Hit"], ["8", "foo", "Hit"]])
 
       r = client.execute("Select * from #{table_name_2} ORDER BY h_id")
       values = []
@@ -95,7 +107,7 @@ RSpec.describe "redshift2" do
                               ["7", "8", "5", "b", "2001-05-10", nil, "t"]])
     end
   end
-  
+ 
   context "Test DataHistoryRowTransformer" do
     it "New data row should generate new history row" do
       orgs = client.table_schema(table_name)
@@ -134,5 +146,4 @@ RSpec.describe "redshift2" do
     end
   end
 end
-
 
