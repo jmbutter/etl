@@ -20,7 +20,7 @@ module ETL::Redshift
       query = "SELECT #{primary_key}"
       query = query + ", #{natural_keys.join(", ")}" if !natural_keys.nil?
       query = query + ", #{tracking_columns.join(", ")}" if !tracking_columns.nil?
-      query = query + ", created_at, ended_at"
+      query = query + ", h_created_at, h_ended_at"
       query = query + ", #{surrogate_key}" if !surrogate_key.nil?
       query = query + " from #{table_schema.name}"
       query = query + "WHERE #{filter_part}" if !filter_part.nil?
@@ -31,7 +31,7 @@ module ETL::Redshift
       # Adding a restriction to not bring excessively large amounts of data into in memory cache.
       # If this limit is reached likely time to put this in redis instead.
       raise "Add a where to ensure the number of rows in memory is smaller than 1000000 rows" if r.ntuples > 1000000
-      augmenting_columns = [surrogate_key, primary_key, "created_at", "ended_at" ]
+      augmenting_columns = [surrogate_key, primary_key, "h_created_at", "h_ended_at" ]
       natural_keys.each { |k| augmenting_columns << k }
       super(augmenting_columns, tracking_columns, cache)
     end

@@ -118,8 +118,8 @@ module ETL::Output
         named_rows[@main_table_schema.name][main_table_surrogate_key] = new_surrogate_id
         named_rows[@history_table_schema.name][main_table_surrogate_key] = new_surrogate_id
         named_rows[@history_table_schema.name][history_table_key] = new_history_id
-        named_rows[@history_table_schema.name]["current"] = true
-        named_rows[@history_table_schema.name]["created_at"] = @now_generator.now
+        named_rows[@history_table_schema.name]["h_current"] = true
+        named_rows[@history_table_schema.name]["h_created_at"] = @now_generator.now
       else
         # an existing row has changed
         scd_changed = false
@@ -137,13 +137,17 @@ module ETL::Output
             existing_history_row = named_rows[@history_table_schema.name]
             new_history_row = existing_history_row.clone
             existing_history_row = named_rows[@history_table_schema.name]
-            existing_history_row["current"] = false
-            existing_history_row["ended_at"] = @now_generator.now
+            existing_history_row["h_current"] = false
+            existing_history_row["h_ended_at"] = @now_generator.now
+            # revert changes on existing history row as nothing should change.
+            @scd_columns.each do |scd_col|
+              existing_history_row[scd_col] = row["old_#{scd_col}"] if row.has_key?("old_#{scd_col}")
+            end
 
             new_history_id = @id_generator.generate_id
             new_history_row[history_table_key] = new_history_id
-            new_history_row["current"] = true
-            new_history_row["created_at"] = @now_generator.now
+            new_history_row["h_current"] = true
+            new_history_row["h_created_at"] = @now_generator.now
             named_rows[@history_table_schema.name] = [existing_history_row, new_history_row]
         else
           named_rows.delete(@history_table_schema.name)
