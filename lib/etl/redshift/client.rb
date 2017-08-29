@@ -31,7 +31,14 @@ module ETL::Redshift
 
     def db
       @db ||= begin
-                PG.connect(@conn_params)
+                cp = @conn_params
+                # convert params for SEQUEL gem to PG style instead
+                if cp.has_key?(:user_name)
+                  cp[:user] = cp[:user_name]
+                  cp.delete!(:user)
+                  cp.delete(:adapter)
+                end
+                PG.connect(cp)
 # removing due to ubuntu 14.04 deployment issues
 #                if @use_redshift_odbc_driver then
 #                  Sequel.odbc(@conn_params)
