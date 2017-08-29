@@ -28,8 +28,8 @@ RSpec.describe "redshift column_augmenter" do
       table.string(:id)
       table.string(:dw_id)
       table.string(:info)
-      table.date(:created_at)
-      table.date(:ended_at)
+      table.date(:h_created_at)
+      table.date(:h_ended_at)
       table.add_primarykey(:dw_id)
       client.create_table(table)
       data = [
@@ -49,8 +49,8 @@ RSpec.describe "redshift column_augmenter" do
       r = client.execute("Select * from #{table_name} ORDER BY dw_id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"2", "dw_id"=>"11", "info"=>"other", "created_at"=>nil, "ended_at"=>nil},
-                            {"id"=>"1", "dw_id"=>"6", "info"=>"foo", "created_at"=>nil, "ended_at"=>nil}])
+      expect(values).to eq([{"id"=>"2", "dw_id"=>"11", "info"=>"other", "h_created_at"=>nil, "h_ended_at"=>nil},
+                            {"id"=>"1", "dw_id"=>"6", "info"=>"foo", "h_created_at"=>nil, "h_ended_at"=>nil}])
       client.drop_table(table_name)
     end
   end
