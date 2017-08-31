@@ -14,6 +14,7 @@ class TestTransformer
     row
   end
 end
+
 class IncrementingTestIDGenerator
   def initialize(start=0)
     @count = start
@@ -21,6 +22,13 @@ class IncrementingTestIDGenerator
   def generate_id
     @count = @count  + 1
     @count.to_s
+  end
+end
+
+class RowSkipper
+  def skip?(row)
+    return true if row["id"] == "zzzz"
+    false
   end
 end
 
@@ -84,6 +92,7 @@ RSpec.describe "redshift2" do
       data = [
         { "id" => "4", "info" => "bar", "bento" => "a" },
         { "id" => "5", "info" => "foo", "bento" => "b" },
+        { "id" => "zzzz", "info" => "skipped_row", "bento" => "b" },
       ]
       input = ETL::Input::Array.new(data)
 
@@ -91,9 +100,10 @@ RSpec.describe "redshift2" do
       output.id_generator = IncrementingTestIDGenerator.new(5)
       output.now_generator = TestCurrentDateTimeGenerator.new
       output.reader = input
+      output.row_skipper = RowSkipper.new
       output.pre_transformer = TestTransformer.new
       result = output.run
-      
+
       r = client.execute("Select * from #{table_name} ORDER BY dw_id")
       values = []
       r.each { |h| values << h }
@@ -107,7 +117,7 @@ RSpec.describe "redshift2" do
                               ["7", "8", "5", "b", "2001-05-10", nil, "t"]])
     end
   end
- 
+
   context "Test DataHistoryRowTransformer" do
     it "New data row should generate new history row" do
       orgs = client.table_schema(table_name)

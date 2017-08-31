@@ -8,8 +8,8 @@ module ETL::Output
   # new Redshift outputter that defers logic to client
   class Redshift2 < Base
     include ETL::CachedLogger
-    attr_accessor :now_generator, :id_generator, :delimiter, :pre_transformer
-    
+    attr_accessor :now_generator, :id_generator, :delimiter, :pre_transformer, :row_skipper
+
     def initialize(client, main_table_name, optional_history_table_name, surrogate_key, natural_keys, scd_columns)
       super()
       @client = client
@@ -34,7 +34,9 @@ module ETL::Output
       else
         main_table_schema = table_schemas_lookup[@main_table_name]
         history_table_schema = table_schemas_lookup[@history_table_name]
-        transformers << transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
+        transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
+        transformer.row_skipper = @row_skipper
+        transformers << transformer
       end
       MultiTransformer.new(transformers)
     end
@@ -70,6 +72,8 @@ module ETL::Output
   end
 
   class DataHistoryRowTransformer
+    attr_accessor :row_skipper
+
     def initialize(client, scd_columns, natural_keys, id_generator, main_table_schema, history_table_schema, now_generator)
       raise "client cannot be nil" if client.nil?
       raise "natural_keys cannot be nil" if natural_keys.nil?
@@ -100,6 +104,10 @@ module ETL::Output
       # change in the row
       row = @date_table_id_augmenter.transform(row)
       row = @column_augmenter.transform(row)
+
+      # skip the row if specified
+      return ::ETL::Redshift::SkipRow.new if !@row_skipper.nil? && @row_skipper.skip?(row)
+
       named_rows = @row_splitter.transform(row)
 
       raise "data table #{@main_table_schema.name} must only have one pk" if !@main_table_schema.primary_key.count == 1
