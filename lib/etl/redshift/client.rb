@@ -225,6 +225,10 @@ SQL
             row = t.transform(row)
           end
 
+          if row.is_a? SkipRow
+            next
+          end
+
           is_named_rows = false
           raise "Row is not a Hash type, #{row.inspect}" if !row.is_a? Hash
           if row.has_key?(table_schemas_lookup.keys[0])
@@ -269,5 +273,8 @@ SQL
       end
       [rows_processed, csv_file_paths]
     end
+  end
+  # class used as sentinel to skip a row.
+  class SkipRow
   end
 end
