@@ -25,7 +25,35 @@ class IncrementingTestIDGenerator
   end
 end
 
-class RowSkipper
+class RowPipelineHook
+  def pre_update?
+    true
+  end
+  
+  def pre(row)
+    row
+  end
+
+  def post_update?
+    true
+  end
+  def post(row)
+    row
+  end
+
+  def pre_split_process?
+    true
+  end
+  def pre_split_process(named_rows)
+    named_rows
+  end
+  def post_split_process?
+    true
+  end
+  def post_split_process(named_rows)
+    named_rows
+  end
+
   def skip?(row)
     return true if row["id"] == "zzzz"
     false
@@ -100,7 +128,7 @@ RSpec.describe "redshift2" do
       output.id_generator = IncrementingTestIDGenerator.new(5)
       output.now_generator = TestCurrentDateTimeGenerator.new
       output.reader = input
-      output.row_skipper = RowSkipper.new
+      output.row_pipeline_hook = RowPipelineHook.new
       output.pre_transformer = TestTransformer.new
       result = output.run
 
