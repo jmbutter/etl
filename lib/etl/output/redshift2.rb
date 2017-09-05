@@ -8,7 +8,7 @@ module ETL::Output
   # new Redshift outputter that defers logic to client
   class Redshift2 < Base
     include ETL::CachedLogger
-    attr_accessor :now_generator, :id_generator, :delimiter, :pre_transformer, :row_skipper
+    attr_accessor :now_generator, :id_generator, :delimiter, :pre_transformer, :row_pipeline_hook
 
     def initialize(client, main_table_name, optional_history_table_name, surrogate_key, natural_keys, scd_columns)
       super()
@@ -35,7 +35,7 @@ module ETL::Output
         main_table_schema = table_schemas_lookup[@main_table_name]
         history_table_schema = table_schemas_lookup[@history_table_name]
         transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
-        transformer.row_skipper = @row_skipper
+        transformer.row_pipeline_hook = @row_pipeline_hook
         transformers << transformer
       end
       MultiTransformer.new(transformers)
@@ -72,7 +72,7 @@ module ETL::Output
   end
 
   class DataHistoryRowTransformer
-    attr_accessor :row_skipper
+    attr_accessor :row_pipeline_hook
 
     def initialize(client, scd_columns, natural_keys, id_generator, main_table_schema, history_table_schema, now_generator)
       raise "client cannot be nil" if client.nil?
@@ -102,13 +102,16 @@ module ETL::Output
       named_rows = {}
       # Conditionally creates more named rows based on the
       # change in the row
+      row = @row_pipeline_hook.pre(row) if !@row_pipeline_hook.nil? && @row_pipeline_hook.pre_update?
       row = @date_table_id_augmenter.transform(row)
       row = @column_augmenter.transform(row)
+      row = @row_pipeline_hook.post(row) if !@row_pipeline_hook.nil? && @row_pipeline_hook.post_update?
 
       # skip the row if specified
-      return ::ETL::Redshift::SkipRow.new if !@row_skipper.nil? && @row_skipper.skip?(row)
+      return ::ETL::Redshift::SkipRow.new if !@row_pipeline_hook.nil? && @row_pipeline_hook.skip?(row)
 
       named_rows = @row_splitter.transform(row)
+      named_rows = @row_pipeline_hook.pre_split_process(named_rows) if !@row_pipeline_hook.nil? && @row_pipeline_hook.pre_split_process?
 
       raise "data table #{@main_table_schema.name} must only have one pk" if !@main_table_schema.primary_key.count == 1
       raise "history table #{@history_table_schema.name} must only have one pk" if !@history_table_schema.primary_key.count == 1
@@ -159,6 +162,8 @@ module ETL::Output
           named_rows.delete(@history_table_schema.name)
         end
       end
+
+      named_rows = @row_pipeline_hook.post_split_process(named_rows) if !@row_pipeline_hook.nil? && @row_pipeline_hook.post_split_process?
       named_rows
     end
   end
