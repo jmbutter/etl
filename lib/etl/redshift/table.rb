@@ -122,6 +122,23 @@ module ETL
         return t
       end
 
+      def create_table_code()
+        code = "table = ::ETL::Redshift::Table.new('#{@name}')\n"
+        @columns.each do |key, c|
+          width = "nil"
+          width = "#{c.width}" unless c.width.nil?
+          precision = "nil"
+          width = "#{c.precision}" unless c.precision.nil?
+          code = code + "table.add_columns('#{key}', :#{c.type}, #{width}, #{precision})\n"
+        end
+        code = code + "table.primary_key = [#{@primary_key.map { |k| "'#{k}'"}.join(",")}]\n" unless @primary_key.empty?
+        code = code + "table.dist_key = '#{@dist_key}'\n" unless @dist_key.empty?
+        code = code + "table.sort_key = [#{@sort_keys.map { |k| "#{'k'}"}.join(",")}]\n" unless @sort_keys.empty?
+        code = code + "table.dist_style = '#{@dist_style}'\n" unless @dist_style.empty?
+        code = code + "table.backup = #{@backup}\n" if @backup == false
+        code
+      end
+
       def create_table_sql(using_redshift_odbc_driver = true)
         temp =""
         temp = if @temp

@@ -16,7 +16,7 @@ module ETL::Cli::Cmd
       option "--password", "Password", attribute_name: :password
       option "--database", "Database", attribute_name: :database
       option "--inputdir", "Input directory that contains a configuration file", :attribute_name => :inputdir
-      option "--outputdir", "Output directory where migration is created at", :attribute_name => :outputdir, :required => true 
+      option "--outputdir", "Output directory where migration is created at", :attribute_name => :outputdir, :required => true
 
       Adopter = { mysql: "mysql2" }
 
@@ -42,34 +42,34 @@ module ETL::Cli::Cmd
           if @provider && @host && @user && @password && @database
             adapter = @provider
             adapter = Adopter[@provider] if Adopter.include? @provider
-            return { host: host, adapter: adapter, database: database, user: user, password: password } 
+            return { host: host, adapter: adapter, database: database, user: user, password: password }
           else
             raise "source_db_params is not defined in the config file" unless table_config.include? :source_db_params
             return table_config[:source_db_params]
-          end  
+          end
           raise "Parameters to connect to the data source are required"
         end
       end
 
       def columns
         @columns ||= begin
-          raise "columns are not defined in the config file" unless table_config.include? :columns 
+          raise "columns are not defined in the config file" unless table_config.include? :columns
           table_config[:columns]
         end
       end
 
       def scd_columns
         @scd_columns ||= begin
-          raise "scd_columns are not defined in the config file" unless table_config.include? :scd_columns 
+          raise "scd_columns are not defined in the config file" unless table_config.include? :scd_columns
           table_config[:scd_columns]
-        end 
+        end
       end
 
       def target_columns
         @target_columns ||= table_config.fetch(:target_columns, {})
       end
 
-      def scd? 
+      def scd?
         table_config.fetch(:scd, false)
       end
 
@@ -84,7 +84,7 @@ module ETL::Cli::Cmd
       def primary_keys
         @primary_keys ||= begin
           source_schema.select { |column, types| types[:primary_key] == true }
-                          .map{ |column, types| column }          
+                          .map{ |column, types| column }
         end
       end
 
@@ -101,7 +101,7 @@ module ETL::Cli::Cmd
 
         schema_hash = source_schema.each_with_object({}) do |schema, h|
           column_name = clms[schema[0].to_sym]
-          h[column_name] = schema[1][:db_type] 
+          h[column_name] = schema[1][:db_type]
         end
         s_map = schema_hash.select { |k, v| clms.values.include? k } .sort_by { |k, _| clms.values.index(k) }.to_h
         # Add target-specific columns if defined
@@ -119,9 +119,9 @@ module ETL::Cli::Cmd
         migration_file = File.open("#{@outputdir}/#{table}_#{version}.rb", "w")
         template = File.read("#{@inputdir}/redshift_migration.erb")
         generator.up = up
-        generator.down = down 
-        generator.table = table.capitalize 
-        generator.version = version 
+        generator.down = down
+        generator.table = table.capitalize
+        generator.version = version
         migration_file << ERB.new(template).result(generator.template_binding)
         migration_file.close
       end
@@ -160,13 +160,13 @@ END
           auto_key = "#{table_name}_id".to_sym
           t.int(auto_key)
           temp_hash = {}
-          temp_hash[auto_key] = { key: "identity" } 
+          temp_hash[auto_key] = { key: "identity" }
           temp_hash.merge!(schema)
           schema.replace temp_hash
         end
 
         schema.each do |key, type|
-          if type.is_a? Hash 
+          if type.is_a? Hash
             define_type(t, key, type[:type])
             if type.include? :key
               case type[:key].to_sym
