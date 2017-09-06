@@ -20,11 +20,15 @@ module ETL::Cache
       @row_lookup = {}
       reader.each do |row|
         key = self.class.hash_column_values(@columns, row)
-        @row_lookup[key] = row
+        if @row_lookup.key?(key)
+          @row_lookup[key] << row
+        else
+          @row_lookup[key] = [row]
+        end
       end
     end
 
-    def find_row(row)
+    def find_rows(row)
         key = self.class.hash_column_values(@columns, row)
         @row_lookup[key]
     end

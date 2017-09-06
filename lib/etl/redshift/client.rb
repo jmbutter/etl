@@ -151,60 +151,12 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, table_schemas_lookup, transformer)
-      # write csv files
-      arr = write_csv_files(reader, table_schemas_lookup, transformer)
-      rows_processed = arr[0]
-      file_paths = arr[1]
-
-      if rows_processed == 0
-        log.warn("No rows processed")
-        return rows_processed
-      end
-
+    def upsert_rows(reader, table_schemas_lookup, row_transformer)
       tmp_session = table_schemas_lookup.keys.join("_") + @random_key
 
       # upload files to s3
       creds = ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
-      s3_file_names = {}
-      file_paths.each do |t, fp|
-        s3_file_names[t] = File.basename(fp)
-        s3_resource = Aws::S3::Resource.new(region: @region, credentials: creds)
-        s3_resource.bucket(@bucket).object(s3_file_names[t]).upload_file(fp)
-      end
 
-      table_schemas_lookup.each do |t, table_schema|
-        tmp_table = create_staging_table(t)
-        pks = table_schema.primary_key
-        s3_path = "#{@bucket}/#{s3_file_names[t]}"
-
-        copy_from_s3(tmp_table, s3_path)
-        delete_sql = <<SQL
-          DELETE FROM #{t}
-          USING #{tmp_table} s
-          WHERE #{pks.collect{ |pk| "#{t}.#{pk} = s.#{pk}" }.join(" and ")}
-SQL
-        execute(delete_sql)
-
-        # load temporary tables
-        insert_sql = <<SQL
-          INSERT INTO #{t}
-          SELECT * FROM #{tmp_table}
-SQL
-        execute(insert_sql)
-      end
-      rows_processed
-    end
-
-    def create_staging_table(destination_table)
-      tmp_table_name = destination_table + @random_key
-      # create temp table to add data to.
-      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, { temp: true, like: destination_table })
-      create_table(tmp_table)
-      tmp_table_name
-    end
-
-    def write_csv_files(reader, table_schemas_lookup, row_transformer)
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
       row_transformers = [remove_new_lines]
@@ -221,58 +173,114 @@ SQL
       rows_processed = 0
       begin
         reader.each_row do |row|
-          row_transformers.each do |t|
-            row = t.transform(row)
-          end
-
-          if row.is_a? SkipRow
+          values_lookup = transform_row(table_schemas_lookup, row_transformers, row)
+          if values_lookup.is_a? SkipRow
             next
           end
 
-          is_named_rows = false
-          raise "Row is not a Hash type, #{row.inspect}" if !row.is_a? Hash
-          if row.has_key?(table_schemas_lookup.keys[0])
-              rows = row
-          else
-            rows = { table_schemas_lookup.keys[0] => row }
-          end
-
-          rows.each do |key, split_row|
-            table_schema = table_schemas_lookup[key]
-            identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
-
-            split_rows = []
-            if split_row.is_a? Array
-              split_rows = split_row
-            else
-              split_rows = [split_row]
-            end
-            split_rows.each do |r|
-              values_arr = []
-              table_schema.columns.keys.each do |c|
-                if identity_key_name == c
-                  next
-                end
-
-                if r.has_key?(c)
-                  values_arr << r[c]
-                else
-                  values_arr << nil
-                end
-              end
+          values_lookup.each_pair do |table_name, row_arrays|
+            table_schema = table_schemas_lookup[table_name]
+            row_arrays.each do |values_arr|
               csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
-              csv_files[key].add_row(csv_row)
+              csv_files[table_name].add_row(csv_row)
               rows_processed += 1
             end
           end
         end
       ensure
-        table_schemas_lookup.keys.each do |t|
+        table_schemas_lookup.each_pair do |t, table_schema|
           csv_files[t].close()
+          local_file_path = csv_file_paths[t].path
+          s3_file_name = File.basename(local_file_path)
+          s3_path = "#{@bucket}/#{s3_file_name}"
+          tmp_table = create_staging_table(t)
+          s3_resource = Aws::S3::Resource.new(region: @region, credentials: creds)
+          s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
+
+          copy_from_s3(tmp_table, s3_path)
+          where_id_join = ""
+          table_schema.primary_key.each do |pk|
+            if where_id_join == ""
+              where_id_join = "where #{t}.#{pk} = #{tmp_table}.#{pk}"
+            else
+              where_id_join = "#{where_id_join} and #{t}.#{pk} = #{tmp_table}.#{pk}"
+            end
+          end
+          # Using recommended method to do upsert
+          # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
+          upsert_data = <<SQL
+begin transaction;
+  delete from #{t} using #{tmp_table} #{where_id_join};
+  insert into #{t} select * from #{tmp_table};
+end transaction;
+SQL
+          execute(upsert_data)
         end
       end
-      [rows_processed, csv_file_paths]
+      rows_processed
     end
+
+    def create_staging_table(destination_table)
+      tmp_table_name = destination_table + @random_key
+      # create temp table to add data to.
+      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, { temp: true, like: destination_table })
+      create_table(tmp_table)
+      tmp_table_name
+    end
+
+    def transform_row(table_schemas_lookup, row_transformers, row)
+      row_transformers.each do |t|
+        row = t.transform(row)
+      end
+
+      if row.is_a? SkipRow
+        return row
+      end
+
+      is_named_rows = false
+      raise "Row is not a Hash type, #{row.inspect}" if !row.is_a? Hash
+      if row.has_key?(table_schemas_lookup.keys[0])
+          rows = row
+      else
+        rows = { table_schemas_lookup.keys[0] => row }
+      end
+
+      values_by_table = {}
+      rows.each do |key, split_row|
+        table_schema = table_schemas_lookup[key]
+        identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
+
+        split_rows = []
+        if split_row.is_a? Array
+          split_rows = split_row
+        else
+          split_rows = [split_row]
+        end
+
+        split_rows.each do |r|
+          values_arr = []
+          table_schema.columns.keys.each do |c|
+            if identity_key_name == c
+              next
+            end
+
+            if r.has_key?(c)
+              values_arr << r[c]
+            else
+              values_arr << nil
+            end
+          end
+          if !values_by_table.key?(key)
+            values_by_table[key] = [values_arr]
+          else
+            values_by_table[key] << values_arr
+          end
+        end
+      end
+
+      values_by_table
+    end
+
   end
   # class used as sentinel to skip a row.
   class SkipRow

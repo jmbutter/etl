@@ -34,8 +34,7 @@ module ETL::Output
       else
         main_table_schema = table_schemas_lookup[@main_table_name]
         history_table_schema = table_schemas_lookup[@history_table_name]
-        transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator)
-        transformer.row_pipeline_hook = @row_pipeline_hook
+        transformer = ::ETL::Output::DataHistoryRowTransformer.new(@client, @scd_columns, @natural_keys, @id_generator, main_table_schema, history_table_schema, @now_generator, @row_pipeline_hook)
         transformers << transformer
       end
       MultiTransformer.new(transformers)
@@ -72,9 +71,7 @@ module ETL::Output
   end
 
   class DataHistoryRowTransformer
-    attr_accessor :row_pipeline_hook
-
-    def initialize(client, scd_columns, natural_keys, id_generator, main_table_schema, history_table_schema, now_generator)
+    def initialize(client, scd_columns, natural_keys, id_generator, main_table_schema, history_table_schema, now_generator, row_pipeline_hook)
       raise "client cannot be nil" if client.nil?
       raise "natural_keys cannot be nil" if natural_keys.nil?
       raise "scd columns cannot be nil" if scd_columns.nil?
@@ -94,7 +91,8 @@ module ETL::Output
       @table_schemas_lookup = { @main_table_schema.name => @main_table_schema }
       @table_schemas_lookup[@history_table_schema.name] = @history_table_schema if !@history_table_schema.nil?
       @date_table_id_augmenter = ::ETL::Redshift::DateTableIDAugmenter.new(@table_schemas_lookup.values)
-      @column_augmenter = ::ETL::Redshift::ColumnValueAugmenter.new(@client, @history_table_schema, @surrogate_key, @natural_keys, @scd_columns, nil)
+      @column_augmenter = ::ETL::Redshift::ColumnValueAugmenter.new(@client, @history_table_schema, @surrogate_key, @natural_keys, @scd_columns, nil, row_pipeline_hook)
+      @row_pipeline_hook = row_pipeline_hook
       @row_splitter = ::ETL::Transform::SplitRow.SplitByTableSchemas(@table_schemas_lookup.values)
     end
 
