@@ -26,10 +26,25 @@ class IncrementingTestIDGenerator
 end
 
 class RowPipelineHook
+  def select_row(current_row, found_rows)
+    return nil if found_rows.nil?
+    bento = current_row["bento"]
+    row_marked_current = nil
+    found_rows.each do |r|
+      if r["h_current"] == "t"
+        row_marked_current = r
+      end
+      if r["bento"] == bento
+        return r
+      end
+    end
+    row_marked_current
+  end
+
   def pre_update?
     true
   end
-  
+
   def pre(row)
     row
   end
@@ -102,25 +117,29 @@ def orgs_history_table
 end
 
 RSpec.describe "redshift2" do
-  before do
+  before(:example) do
     ::Helper.client.drop_table(orgs_table.name)
     ::Helper.client.drop_table(orgs_history_table.name)
     ::Helper.client.create_table(orgs_table)
     ::Helper.client.create_table(orgs_history_table)
+    sleep(5)
   end
   let(:client) {  ::Helper.client }
   let(:table_name) { orgs_table.name }
   let(:table_name_2) { orgs_history_table.name }
   let(:date) { DateTime.new(2001,5,10,4,5,6) }
   context "Test redshift2 can upsert data to a data and history table multiple table" do
-    it "augment a row with surrogate key" do
 
+    it "Add new row and existing one row with with bento non-existing history records in " do
       # Adding data so that when data comes in it will find this pre-existing id
-      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, h_created_at, bento, h_current) VALUES ('1','3','4', '2017.5.22', 'c', true )")
+      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, h_created_at, bento, h_current) VALUES ('1','3','4', '2017.5.22', 'a', true )")
+      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, h_created_at, h_ended_at, bento, h_current) VALUES ('2','3','4', '2017.5.22', '2017.5.23', 'b', false )")
+      client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, h_created_at, bento, h_current) VALUES ('3','4','5', '2017.5.22', 'a', true )")
       data = [
-        { "id" => "4", "info" => "bar", "bento" => "a" },
-        { "id" => "5", "info" => "foo", "bento" => "b" },
-        { "id" => "zzzz", "info" => "skipped_row", "bento" => "b" },
+        { "id" => "4", "info" => "bar", "bento" => "c" },
+        { "id" => "1", "info" => "bar", "bento" => "a" },
+        { "id" => "5", "info" => "other", "bento" => "a" },
+        { "id" => "zzzz", "info" => "other", "bento" => "a" },
       ]
       input = ETL::Input::Array.new(data)
 
@@ -135,14 +154,18 @@ RSpec.describe "redshift2" do
       r = client.execute("Select * from #{table_name} ORDER BY dw_id")
       values = []
       r.each { |h| values << h }
-      expect(r.values).to eq([["3", "bar", "Hit"], ["8", "foo", "Hit"]])
+      expect(values).to eq([{"dw_id"=>"3", "info"=>"bar", "added"=>"Hit"},
+                            {"dw_id"=>"4", "info"=>"other", "added"=>"Hit"},
+                            {"dw_id"=>"8", "info"=>"bar", "added"=>"Hit"}])
 
       r = client.execute("Select * from #{table_name_2} ORDER BY h_id")
       values = []
       r.each { |h| values << h }
-      expect(r.values).to eq([["1", "3", "4", "c", "2017-05-22", '2001-05-10', "f"],
-                              ["6", "3", "4", "a", "2001-05-10", nil, "t"],
-                              ["7", "8", "5", "b", "2001-05-10", nil, "t"]])
+      expect(values).to eq([{"h_id"=>"1", "dw_id"=>"3", "id"=>"4", "bento"=>"a", "h_created_at"=>"2017-05-22", "h_ended_at"=>"2001-05-10", "h_current"=>"f"},
+                            {"h_id"=>"2", "dw_id"=>"3", "id"=>"4", "bento"=>"b", "h_created_at"=>"2017-05-22", "h_ended_at"=>"2017-05-23", "h_current"=>"f"},
+                            {"h_id"=>"3", "dw_id"=>"4", "id"=>"5", "bento"=>"a", "h_created_at"=>"2017-05-22", "h_ended_at"=>nil, "h_current"=>"t"},
+                            {"h_id"=>"6", "dw_id"=>"3", "id"=>"4", "bento"=>"c", "h_created_at"=>"2001-05-10", "h_ended_at"=>nil, "h_current"=>"t"},
+                            {"h_id"=>"7", "dw_id"=>"8", "id"=>"1", "bento"=>"a", "h_created_at"=>"2001-05-10", "h_ended_at"=>nil, "h_current"=>"t"}])
     end
   end
 
@@ -151,7 +174,7 @@ RSpec.describe "redshift2" do
       orgs = client.table_schema(table_name)
       orgs_history = client.table_schema(table_name_2)
       date_time_gen = TestCurrentDateTimeGenerator.new
-      t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new, orgs, orgs_history, date_time_gen)
+      t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new, orgs, orgs_history, date_time_gen, RowPipelineHook.new)
       created_row = t.transform({"id" => "4", "bento" => "app1a", "info" => "info1"})
       expect(created_row).to eq({
         "test_orgs"=>{"info"=>"info1", "dw_id"=>"2" },
@@ -163,7 +186,7 @@ RSpec.describe "redshift2" do
       orgs_history = client.table_schema(table_name_2)
       date_time_gen = TestCurrentDateTimeGenerator.new
       client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, bento, h_created_at, h_current) VALUES ('11', '13', '18', 'app1a', '2001-05-10T04:05:06+00:00', true)")
-      t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new, orgs, orgs_history, date_time_gen)
+      t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new, orgs, orgs_history, date_time_gen, RowPipelineHook.new)
       created_row = t.transform({"id" => "18", "bento" => "app1a", "info" => "info1"})
       expect(created_row).to eq({"test_orgs"=>{"dw_id"=>"13", "info"=>"info1"}})
     end
@@ -173,7 +196,7 @@ RSpec.describe "redshift2" do
       orgs_history = client.table_schema(table_name_2)
       client.execute("INSERT INTO #{table_name_2} (h_id, dw_id, id, bento, h_created_at, h_current) VALUES ('10', '12', '5', 'app1a', '2001-05-10T04:05:06+00:00', true)")
       date_time_gen = TestCurrentDateTimeGenerator.new
-      t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new(10), orgs, orgs_history, date_time_gen)
+      t = ::ETL::Output::DataHistoryRowTransformer.new(client, ["bento"], ["id"], IncrementingTestIDGenerator.new(10), orgs, orgs_history, date_time_gen, RowPipelineHook.new)
       created_row = t.transform({"id" => "5", "bento" => "app1b"})
       expect(created_row).to eq({
         "test_orgs"=>{"dw_id"=>"12"},

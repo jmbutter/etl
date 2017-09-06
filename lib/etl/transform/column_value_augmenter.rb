@@ -13,8 +13,15 @@ module ETL::Transform
       @cache = cache
     end
 
+    def select_row(current_row, found_rows)
+      return nil if found_rows.nil?
+      raise "Expected only one row to find in the set of rows, cannot proceed" if found_rows.count > 1
+      found_rows[0]
+    end
+
     def transform(row)
-      found_row = @cache.find_row(row)
+      found_rows = @cache.find_rows(row)
+      found_row = select_row(row, found_rows)
       if !found_row.nil?
         @augmenting_columns.each do |c|
           if !row.has_key?(c)
