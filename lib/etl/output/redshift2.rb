@@ -174,7 +174,7 @@ module ETL::Output
 
   class IDUUIDGenerator
     def generate_id
-      SecureRandom.uuid
+      SecureRandom.hex(10)
     end
   end
 end
