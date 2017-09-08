@@ -1,3 +1,5 @@
+require 'base64'
+
 module ETL::Cache
   # Simple in-memory cache used primarily for surrogate
   # key lookups.

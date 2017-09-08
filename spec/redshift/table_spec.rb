@@ -12,6 +12,7 @@ RSpec.describe 'Redshift Table' do
         t.add_fk(:fk_id, :other_table, :id)
         t.add_primarykey(:id)
         expect(t.create_table_sql).to eq("CREATE TABLE IF NOT EXISTS test_table( \"id\" int NOT NULL, \"fk_id\" int REFERENCES other_table(id), PRIMARY KEY(id) )")
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\ntable.add_columns('fk_id', :int, nil, nil)\ntable.primary_key = ['id']\n")
       end
 
       it 'Create a table sql with DIST_STYLE ALL' do
@@ -19,6 +20,7 @@ RSpec.describe 'Redshift Table' do
         t.int(:id)
         t.add_primarykey(:id)
         expect(t.create_table_sql).to eq("CREATE TABLE IF NOT EXISTS test_table( \"id\" int NOT NULL, PRIMARY KEY(id) ) DISTSTYLE ALL")
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\ntable.primary_key = ['id']\ntable.dist_style = 'ALL'\n")
       end
 
       it 'Create a table sql with dist and sort key' do
@@ -28,6 +30,7 @@ RSpec.describe 'Redshift Table' do
         t.set_distkey(:id)
         t.add_sortkey(:id)
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int NOT NULL, PRIMARY KEY(id) ) DISTKEY(id) SORTKEY(id)')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\ntable.primary_key = ['id']\ntable.dist_key = 'id'\ntable.sort_key = [k]\n")
       end
 
       it 'Create a table sql with a non-nullable value' do
@@ -38,6 +41,7 @@ RSpec.describe 'Redshift Table' do
         t.columns["info"].nullable = false
 
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int NOT NULL, "info" varchar(255) NOT NULL, PRIMARY KEY(id) )')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\ntable.add_columns('info', :string, nil, nil)\ntable.primary_key = ['id']\n")
       end
 
       it 'Create a temp table sql' do
@@ -45,16 +49,19 @@ RSpec.describe 'Redshift Table' do
         t.int(:id)
         t.add_primarykey(:id)
         expect(t.create_table_sql).to eq('CREATE TEMPORARY TABLE IF NOT EXISTS test_table( "id" int NOT NULL, PRIMARY KEY(id) )')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\ntable.primary_key = ['id']\n")
       end
 
       it 'Create a table like another table' do
         t = ETL::Redshift::Table.new(:test_table, like: 'other_table')
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table ( LIKE other_table )')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\n")
       end
 
       it "Create a table that doesn't back up" do
         t = ETL::Redshift::Table.new(:test_table, backup: false)
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table BACKUP NO')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.backup = false\n")
       end
 
       it 'Create a table with identity and default parameters' do
@@ -62,6 +69,7 @@ RSpec.describe 'Redshift Table' do
         t.int(:id)
         t.set_identity(:id)
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int IDENTITY(1, 1) NOT NULL )')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\n")
       end
 
       it 'Create a table with identity and custom parameters' do
@@ -69,6 +77,7 @@ RSpec.describe 'Redshift Table' do
         t.int(:id)
         t.set_identity(:id, 0, 2)
         expect(t.create_table_sql).to eq('CREATE TABLE IF NOT EXISTS test_table( "id" int IDENTITY(0, 2) NOT NULL )')
+        expect(t.create_table_code).to eq("table = ::ETL::Redshift::Table.new('test_table')\ntable.add_columns('id', :int, nil, nil)\n")
       end
     end
   end
