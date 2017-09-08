@@ -13,11 +13,8 @@ module ETL::Queue
       idle_timeout = params.fetch(:idle_timeout, nil)
       @queue_url = params.fetch(:url, '')
       @region = params.fetch(:region, '')
-      @iam_role = params.fetch(:iam_role, '')
 
-      creds = ::ETL.create_aws_credentials(@region, @iam_role, "etl_sqs_session")
-
-      @client = Aws::SQS::Client.new(region: @region, credentials: creds)
+      @client = Aws::SQS::Client.new(region: @region)
       @poller = Aws::SQS::QueuePoller.new(@queue_url, { client: @client, idle_timeout: idle_timeout })
       @queue = Aws::SQS::Queue.new(url: @queue_url, client: @client)
 

@@ -105,18 +105,13 @@ SQL
       @client.execute(sql)
     end
 
-    def creds
-      session_name = "rdshift-#{tmp_table[0..49]}-upload"
-      ::ETL.create_aws_credentials(@aws_params[:region], @aws_params[:role_arn], session_name)
-    end
-
     def upload_to_s3
-      s3_resource = Aws::S3::Resource.new(region: @aws_params[:region], credentials: creds)
+      s3_resource = Aws::S3::Resource.new(region: @aws_params[:region])
       s3_resource.bucket(@bucket).object(tmp_table).upload_file(csv_file.path)
     end
 
     def delete_object_from_s3
-      s3_client = Aws::S3::Client.new(region: @aws_params[:region], credentials: creds)
+      s3_client = Aws::S3::Client.new(region: @aws_params[:region])
       s3_response = s3_client.delete_object({
         bucket: @bucket,
         key: tmp_table
