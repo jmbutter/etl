@@ -11,8 +11,8 @@ module ETL::Queue
       end
 
       idle_timeout = params.fetch(:idle_timeout, nil)
-      @queue_url = params.fetch(:url, '')
-      @region = params.fetch(:region, '')
+      @queue_url = params.fetch(:url)
+      @region = params.fetch(:region)
 
       @client = Aws::SQS::Client.new(region: @region)
       @poller = Aws::SQS::QueuePoller.new(@queue_url, { client: @client, idle_timeout: idle_timeout })
