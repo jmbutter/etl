@@ -140,9 +140,7 @@ SQL
     end
 
     def delete_object_from_s3(bucket, prefix, session_name)
-      creds = ::ETL.create_aws_credentials(@region, @iam_role, session_name)
-
-      s3 = Aws::S3::Client.new(region: @region, credentials: creds)
+      s3 = Aws::S3::Client.new(region: @region)
       resp = s3.list_objects(bucket: bucket)
       keys = resp[:contents].select { |content| content.key.start_with? prefix }.map { |content| content.key }
 
@@ -153,9 +151,6 @@ SQL
     # provided by the reader.
     def upsert_rows(reader, table_schemas_lookup, row_transformer)
       tmp_session = table_schemas_lookup.keys.join("_") + @random_key
-
-      # upload files to s3
-      creds = ::ETL.create_aws_credentials(@region, @iam_role, tmp_session)
 
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
@@ -194,7 +189,7 @@ SQL
           s3_file_name = File.basename(local_file_path)
           s3_path = "#{@bucket}/#{s3_file_name}"
           tmp_table = create_staging_table(t)
-          s3_resource = Aws::S3::Resource.new(region: @region, credentials: creds)
+          s3_resource = Aws::S3::Resource.new(region: @region)
           s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
 
           copy_from_s3(tmp_table, s3_path)
