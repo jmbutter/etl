@@ -3,8 +3,8 @@ require 'etl/migration/redshift'
 module Migration
   class <%= @table %><%= @version %> < ETL::Migration::Redshift
     def up
-    <% for @up in @ups %>
-      <%= @up %>
+    <% @ups.each do |up| %>
+      <%= up %>
     <% end %>
     end
 
