@@ -118,7 +118,7 @@ module ETL::Cli::Cmd
         version = ETL::StringUtil.digit_str(migration_version+1)
         migration_file = File.open("#{@outputdir}/#{table}_#{version}.rb", "w")
         template = File.read("#{@inputdir}/redshift_migration.erb")
-        generator.up = up
+        generator.ups = up.split('\n')
         generator.down = down
         generator.table = table.capitalize
         generator.version = version
