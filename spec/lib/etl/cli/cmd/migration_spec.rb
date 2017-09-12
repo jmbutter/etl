@@ -227,11 +227,11 @@ END
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
       expect( described_instance.up_sql(false).lstrip.rstrip ).to eq( 
-"@client.create_table((
-  day date,
-  attr varchar (100)
-)
-)" )
+"table = ::ETL::Redshift::Table.new('test_table')
+table.add_columns('day', :date, nil, nil)
+table.add_columns('attr', :varchar (100), nil, nil)
+
+@client.create_table(table)" )
     end
   end
 
@@ -255,34 +255,27 @@ END
       expect( described_instance.primary_keys ).to eq( [] )
     end
 
-    it '#define_table' do
-      t = described_instance.define_table('test_table', scd: true)
-      expect(t.identity_key).to eq({:column=>:test_table_id, :seed=>1, :step=>1})
-      t_scd = described_instance.define_table('test_table_history', schema: described_instance.schema_map(true), scd: true)
-      expect(t_scd.identity_key).to eq({:column=>:test_table_history_id, :seed=>1, :step=>1})
-    end
-
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
       expect( described_instance.up_sql(true).lstrip.rstrip ).to eq(
-"@client.create_table((
-  test_table_id int,
-  day date,
-  attr varchar (100)
-)
-)
-        @client.create_table((
-  test_table_history_id int,
-  day date
-)
-)" )
+"table = ::ETL::Redshift::Table.new('test_table')
+table.add_columns('test_table_id', :int, nil, nil)
+table.add_columns('day', :date, nil, nil)
+table.add_columns('attr', :varchar (100), nil, nil)
+
+@client.create_table(table)
+table = ::ETL::Redshift::Table.new('test_table_history')
+table.add_columns('test_table_history_id', :int, nil, nil)
+table.add_columns('day', :date, nil, nil)
+
+@client.create_table(table)" )
     end
 
     # Drop two tables: test_table, test_table_history
     it '#down_sql' do
       expect( described_instance.down_sql(true).lstrip.rstrip ).to eq(
 '@client.drop_table("test_table")
-        @client.drop_table("test_table_history")')
+@client.drop_table("test_table_history")')
     end
   end
 
@@ -318,24 +311,26 @@ END
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
       expect( described_instance.up_sql(true).lstrip.rstrip ).to eq(
-"@client.create_table((
-  test_table_id int,
-  day date,
-  attr varchar (100)
-)
-)
-        @client.create_table((
-  test_table_history_id int,
-  day date
-)
-)" )
+"table = ::ETL::Redshift::Table.new('test_table')
+table.add_columns('test_table_id', :int, nil, nil)
+table.add_columns('day', :date, nil, nil)
+table.add_columns('attr', :varchar (100), nil, nil)
+table.primary_key = ['day']
+
+@client.create_table(table)
+table = ::ETL::Redshift::Table.new('test_table_history')
+table.add_columns('test_table_history_id', :int, nil, nil)
+table.add_columns('day', :date, nil, nil)
+table.primary_key = ['day']
+
+@client.create_table(table)" )
     end
 
     # Drop two tables: test_table, test_table_history
     it '#down_sql' do
       expect( described_instance.down_sql(true).lstrip.rstrip ).to eq(
 '@client.drop_table("test_table")
-        @client.drop_table("test_table_history")')
+@client.drop_table("test_table_history")')
     end
 
     it '#execute' do

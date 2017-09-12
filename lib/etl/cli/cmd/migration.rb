@@ -129,25 +129,27 @@ module ETL::Cli::Cmd
       def up_sql(scd = false)
         t = define_table(table, scd: scd)
         up = <<END
-        @client.create_table(#{t})
+#{t.create_table_code}
+@client.create_table(table)
 END
         return up unless scd
 
         t_scd = define_table(scd_table, schema: schema_map(true), scd: scd)
         up_scd = <<END
-        @client.create_table(#{t_scd})
+#{t_scd.create_table_code}
+@client.create_table(table)
 END
         up + up_scd
       end
 
       def down_sql(scd = false)
         down = <<END
-        @client.drop_table("#{table}")
+@client.drop_table("#{table}")
 END
         return down unless scd
 
         down_scd = <<END
-        @client.drop_table("#{scd_table}")
+@client.drop_table("#{scd_table}")
 END
         down + down_scd
       end
