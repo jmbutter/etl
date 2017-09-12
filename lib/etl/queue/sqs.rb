@@ -1,3 +1,4 @@
+require 'aws-sdk'
 require 'etl/core'
 require 'etl/queue/payload'
 
