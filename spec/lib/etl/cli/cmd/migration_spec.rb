@@ -226,7 +226,7 @@ END
 
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
-      expect( described_instance.up_sql(true).lstrip.rstrip.delete("\n") ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"day\" date, \"attr\" varchar (100) )')        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"day\" date )')" )
+      expect( described_instance.up_sql(false).lstrip.rstrip ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"day\" date,\n    \"attr\" varchar (100) )')" )
     end
   end
 
@@ -252,7 +252,7 @@ END
 
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
-      expect( described_instance.up_sql(true).lstrip.rstrip.delete("\n") ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"test_table_id\" int IDENTITY(1, 1) NOT NULL, \"day\" date, \"attr\" varchar (100) )')        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"test_table_history_id\" int IDENTITY(1, 1) NOT NULL, \"day\" date )')" )
+      expect( described_instance.up_sql(true).lstrip.rstrip ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"test_table_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date,\n    \"attr\" varchar (100) )')\n        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"test_table_history_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date )')" )
     end
 
     # Drop two tables: test_table, test_table_history
@@ -283,7 +283,7 @@ END
 
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
-      expect( described_instance.up_sql(true).lstrip.rstrip.delete("\n") ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"test_table_id\" int IDENTITY(1, 1) NOT NULL, \"day\" date NOT NULL, \"attr\" varchar (100), PRIMARY KEY(day) )')        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"test_table_history_id\" int IDENTITY(1, 1) NOT NULL, \"day\" date NOT NULL, PRIMARY KEY(day) )')" )
+      expect( described_instance.up_sql(true).lstrip.rstrip ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"test_table_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date NOT NULL,\n    \"attr\" varchar (100), PRIMARY KEY(day) )')\n        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"test_table_history_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date NOT NULL, PRIMARY KEY(day) )')" )
     end
 
     # Drop two tables: test_table, test_table_history

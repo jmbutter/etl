@@ -126,16 +126,20 @@ module ETL::Cli::Cmd
         migration_file.close
       end
 
+      def readable_sql(sql)
+        sql.gsub!(", \"", ",\n    \"")
+      end
+
       def up_sql(scd = false)
         t = define_table(table, schema_map, primary_keys)
         up = <<END
-        @client.execute('#{t.create_table_sql}')
+        @client.execute('#{readable_sql(t.create_table_sql)}')
 END
         return up unless scd
 
         t_scd = define_table(scd_table, schema_map(true), primary_keys)
         up_scd = <<END
-        @client.execute('#{t_scd.create_table_sql}')
+        @client.execute('#{readable_sql(t_scd.create_table_sql)}')
 END
         up + up_scd
       end
