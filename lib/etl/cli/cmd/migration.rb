@@ -126,37 +126,33 @@ module ETL::Cli::Cmd
         migration_file.close
       end
 
-      def readable_sql(sql)
-        sql.gsub!(", \"", ",\n    \"")
-      end
-
       def up_sql(scd = false)
-        t = define_table(table, schema_map, primary_keys)
+        t = define_table(table, scd: scd)
         up = <<END
-        @client.execute('#{readable_sql(t.create_table_sql)}')
+        @client.create_table(#{t})
 END
         return up unless scd
 
-        t_scd = define_table(scd_table, schema_map(true), primary_keys)
+        t_scd = define_table(scd_table, schema: schema_map(true), scd: scd)
         up_scd = <<END
-        @client.execute('#{readable_sql(t_scd.create_table_sql)}')
+        @client.create_table(#{t_scd})
 END
         up + up_scd
       end
 
       def down_sql(scd = false)
         down = <<END
-        @client.execute('drop table #{@table}')
+        @client.drop_table("#{@table}")
 END
         return down unless scd
 
         down_scd = <<END
-        @client.execute('drop table #{@table}_history')
+        @client.drop_table("#{@table}_history")
 END
         down + down_scd
       end
 
-      def define_table(table_name, schema, pks = [])
+      def define_table(table_name, schema: schema_map, pks: primary_keys, scd: false)
         t = ETL::Redshift::Table.new(table_name)
 
         # Create auto-increment key if scd

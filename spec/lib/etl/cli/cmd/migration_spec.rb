@@ -226,7 +226,12 @@ END
 
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
-      expect( described_instance.up_sql(false).lstrip.rstrip ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"day\" date,\n    \"attr\" varchar (100) )')" )
+      expect( described_instance.up_sql(false).lstrip.rstrip ).to eq( 
+"@client.create_table((
+  day date,
+  attr varchar (100)
+)
+)" )
     end
   end
 
@@ -250,14 +255,32 @@ END
       expect( described_instance.primary_keys ).to eq( [] )
     end
 
+    it '#define_table' do
+      t = described_instance.define_table('test_table', scd: true)
+      expect(t.identity_key).to eq({:column=>:test_table_id, :seed=>1, :step=>1})
+      t_scd = described_instance.define_table('test_table_history', schema: described_instance.schema_map(true), scd: true)
+      expect(t_scd.identity_key).to eq({:column=>:test_table_history_id, :seed=>1, :step=>1})
+    end
+
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
-      expect( described_instance.up_sql(true).lstrip.rstrip ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"test_table_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date,\n    \"attr\" varchar (100) )')\n        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"test_table_history_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date )')" )
+      expect( described_instance.up_sql(true).lstrip.rstrip ).to eq(
+"@client.create_table((
+  test_table_id int,
+  day date,
+  attr varchar (100)
+)
+)
+        @client.create_table((
+  test_table_history_id int,
+  day date
+)
+)" )
     end
 
     # Drop two tables: test_table, test_table_history
     it '#down_sql' do
-      expect( described_instance.down_sql.lstrip.rstrip ).to eq( "@client.execute('drop table test_table')" )
+      expect( described_instance.down_sql.lstrip.rstrip ).to eq( '@client.drop_table("test_table")' )
     end
   end
 
@@ -281,14 +304,34 @@ END
       expect( described_instance.primary_keys ).to eq( [:day] )
     end
 
+    it '#define_table' do
+      t = described_instance.define_table('test_table', scd: true)
+      expect(t.identity_key).to eq({:column=>:test_table_id, :seed=>1, :step=>1})
+      expect(t.primary_key).to eq( [:day] )
+      t_scd = described_instance.define_table('test_table_history', schema: described_instance.schema_map(true), scd: true)
+      expect(t_scd.identity_key).to eq({:column=>:test_table_history_id, :seed=>1, :step=>1})
+      expect(t_scd.primary_key).to eq( [:day] )
+    end
+
     # Create two tables: test_table, test_table_history
     it '#up_sql' do
-      expect( described_instance.up_sql(true).lstrip.rstrip ).to eq( "@client.execute('CREATE TABLE IF NOT EXISTS test_table( \"test_table_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date NOT NULL,\n    \"attr\" varchar (100), PRIMARY KEY(day) )')\n        @client.execute('CREATE TABLE IF NOT EXISTS test_table_history( \"test_table_history_id\" int IDENTITY(1, 1) NOT NULL,\n    \"day\" date NOT NULL, PRIMARY KEY(day) )')" )
+      expect( described_instance.up_sql(true).lstrip.rstrip ).to eq(
+"@client.create_table((
+  test_table_id int,
+  day date,
+  attr varchar (100)
+)
+)
+        @client.create_table((
+  test_table_history_id int,
+  day date
+)
+)" )
     end
 
     # Drop two tables: test_table, test_table_history
     it '#down_sql' do
-      expect( described_instance.down_sql.lstrip.rstrip ).to eq( "@client.execute('drop table test_table')" )
+      expect( described_instance.down_sql.lstrip.rstrip ).to eq( '@client.drop_table("test_table")' )
     end
 
     it '#execute' do
