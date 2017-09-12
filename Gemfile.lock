@@ -21,14 +21,14 @@ GEM
       minitest (~> 5.1)
       tzinfo (~> 1.1)
     amq-protocol (2.2.0)
-    aws-sdk (2.10.12)
-      aws-sdk-resources (= 2.10.12)
-    aws-sdk-core (2.10.12)
+    aws-sdk (2.10.43)
+      aws-sdk-resources (= 2.10.43)
+    aws-sdk-core (2.10.43)
       aws-sigv4 (~> 1.0)
       jmespath (~> 1.0)
-    aws-sdk-resources (2.10.12)
-      aws-sdk-core (= 2.10.12)
-    aws-sigv4 (1.0.1)
+    aws-sdk-resources (2.10.43)
+      aws-sdk-core (= 2.10.43)
+    aws-sigv4 (1.0.2)
     bunny (2.7.0)
       amq-protocol (>= 2.2.0)
     cause (0.1)
@@ -79,4 +79,4 @@ DEPENDENCIES
   time-warp
 
 BUNDLED WITH
-   1.15.1
+   1.15.4
