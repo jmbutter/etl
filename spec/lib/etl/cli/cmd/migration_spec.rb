@@ -280,7 +280,9 @@ END
 
     # Drop two tables: test_table, test_table_history
     it '#down_sql' do
-      expect( described_instance.down_sql.lstrip.rstrip ).to eq( '@client.drop_table("test_table")' )
+      expect( described_instance.down_sql(true).lstrip.rstrip ).to eq(
+'@client.drop_table("test_table")
+        @client.drop_table("test_table_history")')
     end
   end
 
@@ -331,7 +333,9 @@ END
 
     # Drop two tables: test_table, test_table_history
     it '#down_sql' do
-      expect( described_instance.down_sql.lstrip.rstrip ).to eq( '@client.drop_table("test_table")' )
+      expect( described_instance.down_sql(true).lstrip.rstrip ).to eq(
+'@client.drop_table("test_table")
+        @client.drop_table("test_table_history")')
     end
 
     it '#execute' do
