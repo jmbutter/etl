@@ -21,7 +21,7 @@ module ETL::Cli::Cmd
       Adopter = { mysql: "mysql2" }
 
       class Generator
-        attr_accessor :table, :version, :up, :down
+        attr_accessor :table, :version, :ups, :down
         def template_binding
           binding
         end
