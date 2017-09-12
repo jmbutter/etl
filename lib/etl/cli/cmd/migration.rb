@@ -21,7 +21,7 @@ module ETL::Cli::Cmd
       Adopter = { mysql: "mysql2" }
 
       class Generator
-        attr_accessor :table, :version, :up, :down
+        attr_accessor :table, :version, :ups, :down
         def template_binding
           binding
         end
@@ -118,7 +118,7 @@ module ETL::Cli::Cmd
         version = ETL::StringUtil.digit_str(migration_version+1)
         migration_file = File.open("#{@outputdir}/#{table}_#{version}.rb", "w")
         template = File.read("#{@inputdir}/redshift_migration.erb")
-        generator.up = up
+        generator.ups = up.split("\n")
         generator.down = down
         generator.table = table.capitalize
         generator.version = version
@@ -127,32 +127,34 @@ module ETL::Cli::Cmd
       end
 
       def up_sql(scd = false)
-        t = define_table(table, schema_map, primary_keys)
+        t = define_table(table, scd: scd)
         up = <<END
-        @client.execute('#{t.create_table_sql}')
+#{t.create_table_code}
+@client.create_table(table)
 END
         return up unless scd
 
-        t_scd = define_table(scd_table, schema_map(true), primary_keys)
+        t_scd = define_table(scd_table, schema: schema_map(true), scd: scd)
         up_scd = <<END
-        @client.execute('#{t_scd.create_table_sql}')
+#{t_scd.create_table_code}
+@client.create_table(table)
 END
         up + up_scd
       end
 
       def down_sql(scd = false)
         down = <<END
-        @client.execute('drop table #{@table}')
+@client.drop_table("#{table}")
 END
         return down unless scd
 
         down_scd = <<END
-        @client.execute('drop table #{@table}_history')
+@client.drop_table("#{scd_table}")
 END
         down + down_scd
       end
 
-      def define_table(table_name, schema, pks = [])
+      def define_table(table_name, schema: schema_map, pks: primary_keys, scd: false)
         t = ETL::Redshift::Table.new(table_name)
 
         # Create auto-increment key if scd
