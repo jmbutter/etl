@@ -26,7 +26,6 @@ module ETL
       def set_identity(column, seed=1, step=1)
         @identity_key = { column: column, seed: seed, step: step }
         columns[column.to_s].nullable = false
-        puts "set_identity #{@identity_key}"
       end
 
       def smallint(name, &block)
@@ -141,7 +140,6 @@ module ETL
       end
 
       def create_table_sql(using_redshift_odbc_driver = true)
-        puts "@identity_key #{@identity_key}"
         temp =""
         temp = if @temp
                  " TEMPORARY"
