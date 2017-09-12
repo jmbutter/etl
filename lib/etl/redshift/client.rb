@@ -54,7 +54,6 @@ module ETL::Redshift
 
     def create_table(table)
       sql = table.create_table_sql(@use_redshift_odbc_driver)
-      puts "sql in create_table #{sql}"
       execute(sql)
     end
 

@@ -142,12 +142,12 @@ END
 
       def down_sql(scd = false)
         down = <<END
-        @client.drop_table("#{@table}")
+        @client.drop_table("#{table}")
 END
         return down unless scd
 
         down_scd = <<END
-        @client.drop_table("#{@table}_history")
+        @client.drop_table("#{scd_table}")
 END
         down + down_scd
       end
