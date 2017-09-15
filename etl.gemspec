@@ -18,9 +18,7 @@ Gem::Specification.new do |spec|
   spec.executables   = "etl"
   spec.require_paths = ["lib"]
 
-  # Removing as this is blocking chef
-  # deployments
-  #spec.add_dependency 'ruby-odbc'
+  spec.add_dependency 'ruby-odbc'
   spec.add_dependency 'clamp'
   spec.add_dependency 'mysql2'
   spec.add_dependency 'sequel'
@@ -28,8 +26,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'tzinfo-data'
   spec.add_dependency 'influxdb'
   spec.add_dependency 'pg'
-  spec.add_dependency 'aws-sdk'
-    ['>= 2.0', '< 3.0']
+  spec.add_dependency 'aws-sdk', ['>= 2.0', '< 3.0']
   spec.add_dependency 'slack-notifier'
 
   spec.add_development_dependency 'bunny'

@@ -1,16 +1,14 @@
 require 'tempfile'
 require 'aws-sdk'
 require 'csv'
-# removing due to ubuntu 14.04 deployment issues
-#require 'odbc'
+require 'sequel'
+require 'odbc'
 require 'mixins/cached_logger'
-require 'pg'
 require 'pathname'
 
 module ETL::Redshift
-
   # when the odbc driver is setup in chef this is the driver's name
-  REDSHIFT_ODBC_DRIVER_NAME="Amazon Redshift (x64)"
+  REDSHIFT_ODBC_DRIVER_NAME = 'Amazon Redshift (x64)'.freeze
 
   # Class that contains shared logic for accessing Redshift.
   class Client
@@ -19,42 +17,60 @@ module ETL::Redshift
 
     # when odbc driver is fully working the use redshift driver can
     # default to true
-    def initialize(conn_params={}, aws_params={})
-      @use_redshift_odbc_driver = false
-      @conn_params = conn_params
-      @region = aws_params.fetch(:region, '')
-      @iam_role = aws_params.fetch(:role_arn, '')
-      @bucket = aws_params.fetch(:s3_bucket, '')
-      @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
+    def initialize(conn_params = {}, aws_params = {})
+      @region = aws_params.fetch(:region)
+      @bucket = aws_params.fetch(:s3_bucket)
+      @iam_role = aws_params.fetch(:role_arn)
+      @random_key = [*('a'..'z'), *('0'..'9')].sample(10).join
       @delimiter = "\u0001"
+      # note the host is never specified as its part of the dsn name and for now that is hardcoded as 'MyRealRedshift'
+      password = conn_params.fetch(:password)
+      dsn = conn_params.fetch(:dsn, 'MyRealRedshift')
+      user = conn_params.fetch(:username, nil) || conn_params.fetch(:user, '')
+      raise 'No user was provided in the connection parameters' if user.empty?
+      @odbc_conn_params = { database: dsn, password: password, user: user }
       ObjectSpace.define_finalizer(self, proc { db.disconnect })
     end
 
     def db
       @db ||= begin
-                PG.connect(@conn_params)
-# removing due to ubuntu 14.04 deployment issues
-#                if @use_redshift_odbc_driver then
-#                  Sequel.odbc(@conn_params)
-#                else
-#                  Sequel.postgres(@conn_params)
-#                end
+                  Sequel.odbc(@odbc_conn_params)
               end
     end
 
+    def execute_ddl(sql)
+      log.debug("execute_ddl SQL: '#{sql}'")
+      db.execute_ddl(sql)
+    end
+
+    def execute_dui(sql)
+      log.debug("execute_dui SQL: '#{sql}'")
+      db.execute_dui(sql)
+    end
+
+    def execute_insert(sql)
+      log.debug("execute insert: SQL: '#{sql}'")
+      db.execute_insert(sql)
+    end
+
+    def fetch(sql)
+      log.debug("fetch SQL: '#{sql}'")
+      db.fetch(sql)
+    end
+
     def execute(sql)
-      log.debug("SQL: '#{sql}'")
-      db.exec(sql)
+      log.debug("execute SQL: '#{sql}'")
+      db.execute(sql)
     end
 
     def drop_table(table_name)
       sql = "drop table if exists #{table_name};"
-      execute(sql)
+      execute_ddl(sql)
     end
 
     def create_table(table)
-      sql = table.create_table_sql(@use_redshift_odbc_driver)
-      execute(sql)
+      sql = table.create_table_sql
+      execute_ddl(sql)
     end
 
     def table_schema(table_name)
@@ -63,7 +79,8 @@ select i.column_name, i.table_name, i.ordinal_position, i.is_nullable, i.data_ty
 from information_schema.columns as i left outer join pg_table_def
       on pg_table_def.tablename = i.table_name and i.column_name = pg_table_def.\"column\" where i.table_name = '#{table_name}'
 SQL
-      columns_info = execute(information_schema_columns_sql)
+      columns_info = []
+      fetch(information_schema_columns_sql).each { |v| columns_info << v }
 
       table_constraint_info_sql = <<SQL
       SELECT conkey
@@ -72,14 +89,19 @@ SQL
           SELECT oid FROM pg_class WHERE relname LIKE '#{table_name}');
 SQL
       pk_ordinals = []
-      values = execute(table_constraint_info_sql).values
-      if !values.nil? && values.length > 0
-        values[0][0].tr('{}', '').split(",").each do |v|
+      values = []
+      fetch(table_constraint_info_sql).each do |v|
+        values << v
+      end
+      if !values.nil? && !values.empty?
+        con_key = values[0].fetch(:conkey)
+        split_keys = con_key.tr('{}', '').split(',')
+        split_keys.each do |v|
           pk_ordinals << v.to_i
         end
       end
 
-    fks_sql = <<SQL
+      fks_sql = <<SQL
 SELECT
   o.conname AS constraint_name,
   (SELECT nspname FROM pg_namespace WHERE oid=m.relnamespace) AS source_schema,
@@ -94,16 +116,16 @@ FROM
 WHERE
   o.contype = 'f' AND m.relname = '#{table_name}' AND o.conrelid IN (SELECT oid FROM pg_class c WHERE c.relkind = 'r');
 SQL
-
-      fks = execute(fks_sql)
-    ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
+      fks = []
+      fetch(fks_sql).each { |fk| fks << fk }
+      ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
     end
 
     def columns(table_name)
       sql = <<SQL
       SELECT "column", type FROM pg_table_def WHERE tablename = '#{table_name}'
 SQL
-      execute(sql)
+      fetch(sql)
     end
 
     def count_row_by_s3(destination)
@@ -111,9 +133,9 @@ SQL
         SELECT c.lines_scanned FROM stl_load_commits c, stl_query q WHERE filename LIKE 's3://#{destination}%'
         AND c.query = q.query AND trim(q.querytxt) NOT LIKE 'COPY ANALYZE%'
 SQL
-      results = execute(sql)
+      results = fetch(sql)
       loaded_rows = 0
-      results.each { |result| loaded_rows += result.fetch("lines_scanned", "0").to_i }
+      results.each { |result| loaded_rows += result[:lines_scanned].to_i || 0 }
       loaded_rows
     end
 
@@ -139,10 +161,10 @@ SQL
       execute(sql)
     end
 
-    def delete_object_from_s3(bucket, prefix, session_name)
+    def delete_object_from_s3(bucket, prefix, _session_name)
       s3 = Aws::S3::Client.new(region: @region)
       resp = s3.list_objects(bucket: bucket)
-      keys = resp[:contents].select { |content| content.key.start_with? prefix }.map { |content| content.key }
+      keys = resp[:contents].select { |content| content.key.start_with? prefix }.map(&:key)
 
       keys.each { |key| s3.delete_object(bucket: bucket, key: key) }
     end
@@ -150,28 +172,26 @@ SQL
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
     def upsert_rows(reader, table_schemas_lookup, row_transformer)
-      tmp_session = table_schemas_lookup.keys.join("_") + @random_key
+      tmp_session = table_schemas_lookup.keys.join('_') + @random_key
 
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
       row_transformers = [remove_new_lines]
-      row_transformers << row_transformer if !row_transformer.nil?
+      row_transformers << row_transformer unless row_transformer.nil?
 
       csv_files = {}
       csv_file_paths = {}
 
       table_schemas_lookup.keys.each do |t|
         csv_file_paths[t] = Tempfile.new(t)
-        csv_files[t] = ::CSV.open(csv_file_paths[t], "w", {:col_sep => @delimiter } )
+        csv_files[t] = ::CSV.open(csv_file_paths[t], 'w', col_sep: @delimiter)
       end
 
       rows_processed = 0
       begin
         reader.each_row do |row|
           values_lookup = transform_row(table_schemas_lookup, row_transformers, row)
-          if values_lookup.is_a? SkipRow
-            next
-          end
+          next if values_lookup.is_a? SkipRow
 
           values_lookup.each_pair do |table_name, row_arrays|
             table_schema = table_schemas_lookup[table_name]
@@ -184,7 +204,7 @@ SQL
         end
       ensure
         table_schemas_lookup.each_pair do |t, table_schema|
-          csv_files[t].close()
+          csv_files[t].close
           local_file_path = csv_file_paths[t].path
           s3_file_name = File.basename(local_file_path)
           s3_path = "#{@bucket}/#{s3_file_name}"
@@ -193,9 +213,9 @@ SQL
           s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
 
           copy_from_s3(tmp_table, s3_path)
-          where_id_join = ""
+          where_id_join = ''
           table_schema.primary_key.each do |pk|
-            if where_id_join == ""
+            if where_id_join == ''
               where_id_join = "where #{t}.#{pk} = #{tmp_table}.#{pk}"
             else
               where_id_join = "#{where_id_join} and #{t}.#{pk} = #{tmp_table}.#{pk}"
@@ -218,7 +238,7 @@ SQL
     def create_staging_table(destination_table)
       tmp_table_name = destination_table + @random_key
       # create temp table to add data to.
-      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, { temp: true, like: destination_table })
+      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, temp: true, like: destination_table)
       create_table(tmp_table)
       tmp_table_name
     end
@@ -228,42 +248,34 @@ SQL
         row = t.transform(row)
       end
 
-      if row.is_a? SkipRow
-        return row
-      end
+      return row if row.is_a? SkipRow
 
       is_named_rows = false
-      raise "Row is not a Hash type, #{row.inspect}" if !row.is_a? Hash
-      if row.has_key?(table_schemas_lookup.keys[0])
-          rows = row
-      else
-        rows = { table_schemas_lookup.keys[0] => row }
-      end
+      raise "Row is not a Hash type, #{row.inspect}" unless row.is_a? Hash
+      rows = if row.key?(table_schemas_lookup.keys[0])
+               row
+             else
+               { table_schemas_lookup.keys[0] => row }
+             end
 
       values_by_table = {}
       rows.each do |key, split_row|
         table_schema = table_schemas_lookup[key]
-        identity_key_name = table_schema.identity_key[:column].to_s if !table_schema.identity_key.nil?
+        identity_key_name = table_schema.identity_key[:column].to_s unless table_schema.identity_key.nil?
 
         split_rows = []
-        if split_row.is_a? Array
-          split_rows = split_row
-        else
-          split_rows = [split_row]
-        end
+        split_rows = if split_row.is_a? Array
+                       split_row
+                     else
+                       [split_row]
+                     end
 
         split_rows.each do |r|
           values_arr = []
           table_schema.columns.keys.each do |c|
-            if identity_key_name == c
-              next
-            end
+            next if identity_key_name == c
 
-            if r.has_key?(c)
-              values_arr << r[c]
-            else
-              values_arr << nil
-            end
+            values_arr << (r[c] if r.key?(c))
           end
           if !values_by_table.key?(key)
             values_by_table[key] = [values_arr]
@@ -275,7 +287,6 @@ SQL
 
       values_by_table
     end
-
   end
   # class used as sentinel to skip a row.
   class SkipRow

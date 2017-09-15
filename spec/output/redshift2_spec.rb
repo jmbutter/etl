@@ -62,15 +62,15 @@ RSpec.describe "redshift2" do
       output.reader = input
       result = output.run
 
-      r = client.execute("Select * from #{table_name} ORDER BY id")
+      r = client.fetch("Select * from #{table_name} ORDER BY id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"1", "bento"=>"a"}, {"id"=>"4", "bento"=>"c"}, {"id"=>"5", "bento"=>"a"}])
+      expect(values).to eq([{:id=>"1", :bento=>"a"}, {:id=>"4", :bento=>"c"}, {:id=>"5", :bento=>"a"}])
 
-      r = client.execute("Select * from #{table_name_2} ORDER BY id")
+      r = client.fetch("Select * from #{table_name_2} ORDER BY id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"1", "info"=>"bar"}, {"id"=>"4", "info"=>"bar"}, {"id"=>"5", "info"=>"other"}])
+      expect(values).to eq([{:id=>"1", :info=>"bar"}, {:id=>"4", :info=>"bar"}, {:id=>"5", :info=>"other"}])
 
       single_table_data = [
         { "id" => "10", "info" => "bar", "bento" => "c" },
@@ -82,10 +82,10 @@ RSpec.describe "redshift2" do
       output.reader = input
       result = output.run
 
-      r = client.execute("Select * from #{table_name} ORDER BY id")
+      r = client.fetch("Select * from #{table_name} ORDER BY id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"1", "bento"=>"a"}, {"id"=>"10", "bento"=>"c"}, {"id"=>"4", "bento"=>"c"}, {"id"=>"5", "bento"=>"a"}])
+      expect(values).to eq([{:id=>"1", :bento=>"a"}, {:id=>"10", :bento=>"c"}, {:id=>"4", :bento=>"c"}, {:id=>"5", :bento=>"a"}])
     end
   end
 end

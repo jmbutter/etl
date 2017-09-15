@@ -139,7 +139,7 @@ end
 RSpec.describe "redshift output" do
 
   def get_conn
-    ::ETL::Redshift::Client.new(rspec_redshift_params)
+    ::ETL::Redshift::Client.new(rspec_redshift_params, rspec_aws_params)
   end
 
   # helper function for comparing expected and actual results from Redshift
@@ -230,7 +230,7 @@ SQL
     expect( job.schema.columns.keys ).to eq(header)
   end
 
-  it "redshift - insert append" do
+  it "redshift -insert append" do
     table_name = "test_2"
     conn = init_conn_table(table_name)
 
@@ -277,14 +277,14 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name}
 order by day, id, value;
 SQL
-    result = conn.execute(sql).map { |h| h.values }
+    result = conn.fetch(sql).map { |h| h.values }
 
     exp_values = [
-      ["2015-04-01 00:00:00", "10", "1", d1, d2],
-      ["2015-04-02 00:00:00", "11", "2", d1, d2],
-      ["2015-04-02 00:00:00", "11", "4", today, today],
-      ["2015-04-02 00:00:00", "13", "5", today, today],
-      ["2015-04-03 00:00:00", "12", "3", d1, d2],
+      ["2015-04-01 00:00:00", 10, 1, d1, d2],
+      ["2015-04-02 00:00:00", 11, 2, d1, d2],
+      ["2015-04-02 00:00:00", 11, 4, today, today],
+      ["2015-04-02 00:00:00", 13, 5, today, today],
+      ["2015-04-03 00:00:00", 12, 3, d1, d2],
     ]
     compare_db_results(exp_values, result)
   end
@@ -336,11 +336,11 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name}
 order by day, id, value;
 SQL
-    result = conn.execute(sql).map { |h| h.values }
+    result = conn.fetch(sql).map { |h| h.values }
 
     exp_values = [
-      ["2015-04-02 00:00:00", "11", "4", today, today],
-      ["2015-04-02 00:00:00", "13", "5", today, today],
+      ["2015-04-02 00:00:00", 11, 4, today, today],
+      ["2015-04-02 00:00:00", 13, 5, today, today],
     ]
 
     compare_db_results(exp_values, result)
@@ -392,12 +392,12 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name}
 order by day, id, value;
 SQL
-    result = conn.execute(sql).map { |h| h.values }
+    result = conn.fetch(sql).map { |h| h.values }
 
     exp_values = [
-      ["2015-04-01 00:00:00", "10", "1", d1, d2],
-      ["2015-04-02 00:00:00", "11", "4", today, today],
-      ["2015-04-05 00:00:00", "12", "6", today, today],
+      ["2015-04-01 00:00:00", 10, 1, d1, d2],
+      ["2015-04-02 00:00:00", 11, 4, today, today],
+      ["2015-04-05 00:00:00", 12, 6, today, today],
     ]
 
     compare_db_results(exp_values, result)
@@ -449,13 +449,13 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name}
 order by id, day, value
 SQL
-    result = conn.execute(sql).map { |h| h.values }
+    result = conn.fetch(sql).map { |h| h.values }
 
     exp_values = [
-      ["2015-04-01 00:00:00", "10", "1", d1, d2],
-      ["2015-04-02 00:00:00", "11", "4", today, today],
-      ["2015-04-05 00:00:00", "12", "6", today, today],
-      ["2015-04-02 00:00:00", "13", "5", today, today],
+      ["2015-04-01 00:00:00", 10, 1, d1, d2],
+      ["2015-04-02 00:00:00", 11, 4, today, today],
+      ["2015-04-05 00:00:00", 12, 6, today, today],
+      ["2015-04-02 00:00:00", 13, 5, today, today],
     ]
 
     compare_db_results(exp_values, result)
@@ -509,18 +509,18 @@ select to_char(day, 'YYYY-MM-DD HH24:MI:SS') as day
 from #{table_name}
 order by day, id, value
 SQL
-    result = conn.execute(sql).map { |h| h.values }
+    result = conn.fetch(sql).map { |h| h.values }
 
     exp_values = [
-      ["2015-04-01 00:00:00", "10", "1"],
-      ["2015-04-01 00:00:00", "11", "2"],
-      ["2015-04-02 00:00:00", "11", "10"],
-      ["2015-04-02 00:00:00", "12", "4"],
-      ["2015-04-02 00:00:00", "13", "5"],
-      ["2015-04-02 00:00:00", "14", "11"],
-      ["2015-04-03 00:00:00", "10", "6"],
-      ["2015-04-03 00:00:00", "11", "12"],
-      ["2015-04-04 00:00:00", "11", "13"],
+      ["2015-04-01 00:00:00", 10, 1],
+      ["2015-04-01 00:00:00", 11, 2],
+      ["2015-04-02 00:00:00", 11, 10],
+      ["2015-04-02 00:00:00", 12, 4],
+      ["2015-04-02 00:00:00", 13, 5],
+      ["2015-04-02 00:00:00", 14, 11],
+      ["2015-04-03 00:00:00", 10, 6],
+      ["2015-04-03 00:00:00", 11, 12],
+      ["2015-04-04 00:00:00", 11, 13],
     ]
 
     compare_db_results(exp_values, result)

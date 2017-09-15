@@ -2,7 +2,6 @@ require 'etl/core'
 require 'etl/transform/date_table_id_augmenter'
 
 module ETL::Redshift
-
   class DateTableIDAugmenter < ::ETL::Transform::DateTableIDAugmenter
     def initialize(table_schemas)
       date_columns = []
