@@ -25,8 +25,11 @@ module ETL::Transform
       @column_hash_maps.each do |row_name, column_names|
         row_value = {}
         column_names.each do |c|
-          row_value[c] = row[c] unless @row_columns_symbolized
-          row_value[c.to_sym] = row[c.to_sym] if @row_columns_symbolized
+          if @row_columns_symbolized
+            row_value[c.to_sym] = row[c.to_sym] if row.key?(c.to_sym)
+          else
+            row_value[c] = row[c] if row.key?(c)
+          end
         end
         named_rows[row_name] = row_value
       end

@@ -273,13 +273,11 @@ SQL
 
         split_rows.each do |r|
           values_arr = []
-          puts "row: #{r.inspect}"
           table_schema.columns.keys.each do |c|
             next if identity_key_name == c
             values_arr << (r[c.to_sym] if r.key?(c.to_sym)) if @row_columns_symbolized
             values_arr << (r[c] if r.key?(c)) unless @row_columns_symbolized
           end
-          puts "value-array: #{values_arr}"
           if !values_by_table.key?(key)
             values_by_table[key] = [values_arr]
           else
