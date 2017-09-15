@@ -4,7 +4,11 @@ module ETL::Cache
   # Simple in-memory cache used primarily for surrogate
   # key lookups.
   class Base
-    def self.hash_column_values(columns, row)
+    def self.hash_column_values(columns, row, symbolized)
+      # Avoid hash computation of there is one key
+      return row[columns[0].to_sym] if columns.count == 1 && symbolized
+      return row[columns[0]] if columns.count == 1
+
       key_values = []
       columns.each do |c|
         key_values << row[c]
@@ -12,16 +16,17 @@ module ETL::Cache
       Base64.encode64(key_values.join('|'))
     end
 
-    def initialize(columns)
+    def initialize(columns, rows_symbolized = true)
       raise "columns nil" if columns.nil?
       raise "columns are not enumerable #{columns.inspect}" if !columns.is_a? Enumerable
       @columns = columns
+      @rows_symbolized = rows_symbolized
     end
 
     def fill(reader)
       @row_lookup = {}
       reader.each do |row|
-        key = self.class.hash_column_values(@columns, row)
+        key = self.class.hash_column_values(@columns, row, @rows_symbolized)
         if @row_lookup.key?(key)
           @row_lookup[key] << row
         else
@@ -31,7 +36,7 @@ module ETL::Cache
     end
 
     def find_rows(row)
-        key = self.class.hash_column_values(@columns, row)
+        key = self.class.hash_column_values(@columns, row, @rows_symbolized)
         @row_lookup[key]
     end
   end

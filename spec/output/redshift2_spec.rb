@@ -46,9 +46,9 @@ RSpec.describe "redshift2" do
       sleep(5)
 
       data = [
-        { "id" => "4", "info" => "bar", "bento" => "c" },
-        { "id" => "1", "info" => "bar", "bento" => "a" },
-        { "id" => "5", "info" => "other", "bento" => "a" },
+        { :id => "4", :info => "bar", :bento => "c" },
+        { :id => "1", :info => "bar", :bento => "a" },
+        { :id => "5", :info => "other", :bento => "a" },
       ]
 
       # test output to multiple tables.
@@ -73,7 +73,7 @@ RSpec.describe "redshift2" do
       expect(values).to eq([{:id=>"1", :info=>"bar"}, {:id=>"4", :info=>"bar"}, {:id=>"5", :info=>"other"}])
 
       single_table_data = [
-        { "id" => "10", "info" => "bar", "bento" => "c" },
+        { :id => "10", :info => "bar", :bento => "c" },
       ]
 
       # test when there is only one table used.

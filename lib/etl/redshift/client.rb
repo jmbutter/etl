@@ -13,7 +13,7 @@ module ETL::Redshift
   # Class that contains shared logic for accessing Redshift.
   class Client
     include ETL::CachedLogger
-    attr_accessor :db, :region, :iam_role, :bucket, :delimiter
+    attr_accessor :db, :region, :iam_role, :bucket, :delimiter, :row_columns_symbolized
 
     # when odbc driver is fully working the use redshift driver can
     # default to true
@@ -30,6 +30,7 @@ module ETL::Redshift
       raise 'No user was provided in the connection parameters' if user.empty?
       @odbc_conn_params = { database: dsn, password: password, user: user }
       ObjectSpace.define_finalizer(self, proc { db.disconnect })
+      @row_columns_symbolized = true
     end
 
     def db
@@ -272,11 +273,13 @@ SQL
 
         split_rows.each do |r|
           values_arr = []
+          puts "row: #{r.inspect}"
           table_schema.columns.keys.each do |c|
             next if identity_key_name == c
-
-            values_arr << (r[c] if r.key?(c))
+            values_arr << (r[c.to_sym] if r.key?(c.to_sym)) if @row_columns_symbolized
+            values_arr << (r[c] if r.key?(c)) unless @row_columns_symbolized
           end
+          puts "value-array: #{values_arr}"
           if !values_by_table.key?(key)
             values_by_table[key] = [values_arr]
           else

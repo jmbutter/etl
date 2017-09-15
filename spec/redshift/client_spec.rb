@@ -79,10 +79,10 @@ SQL
 SQL
       client.execute(create_table)
       data = [
-        { 'id' => 1, 'col2' => 'value2a' },
-        { 'id' => 2, 'col2' => 'value2b' },
-        { 'id' => 3, 'col2' => 'value2c' },
-        { 'id' => 4, 'col2' => "value2c \n aghonce" }, # newline should be removed
+        { :id => 1, :col2 => 'value2a' },
+        { :id => 2, :col2 => 'value2b' },
+        { :id => 3, :col2 => 'value2c' },
+        { :id => 4, :col2 => "value2c \n aghonce" }, # newline should be removed
       ]
       input = ETL::Input::Array.new(data)
       simple_orgs_schema = client.table_schema('simple_orgs_2')
@@ -109,9 +109,9 @@ SQL
 SQL
       client.execute(create_table)
       data = [
-        { 'h_id' => 4, 'id' => 1, 'col2' => 'value2a' },
-        { 'h_id' => 5, 'id' => 2, 'col2' => 'value2b' },
-        { 'h_id' => 6, 'id' => 3, 'col2' => 'value2c' }
+        { :h_id => 4, :id => 1, :col2 => 'value2a' },
+        { :h_id => 5, :id => 2, :col2 => 'value2b' },
+        { :h_id => 6, :id => 3, :col2 => 'value2c' }
       ]
       input = ETL::Input::Array.new(data)
       simple_orgs_schema = client.table_schema('simple_orgs_2')
