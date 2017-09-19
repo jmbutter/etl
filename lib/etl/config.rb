@@ -61,19 +61,12 @@ module ETL
       @aws
     end
 
-    def redshift_env_vars(prefix: "ETL_REDSHIFT", use_odbc_dsn_connection: false)
+    def redshift_env_vars(prefix: "ETL_REDSHIFT")
       redshift_hash = {}
       redshift_hash[:user] = ENV.fetch("#{prefix}_USER", 'masteruser')
       redshift_hash[:password] = ENV.fetch("#{prefix}_PASSWORD")
-      redshift_hash[:port] = ENV.fetch("#{prefix}_PORT", 5439)
-      if use_odbc_dsn_connection
-        redshift_hash[:driver] = ENV.fetch("#{prefix}_DRIVER", 'Amazon Redshift (x64)')
-        redshift_hash[:server] = ENV.fetch("#{prefix}_HOST")
-        redshift_hash[:database] = ENV.fetch("#{prefix}_DB_NAME", 'dev')
-      else
-        redshift_hash[:dbname] = ENV.fetch("#{prefix}_DB_NAME", 'dev')
-        redshift_hash[:host] = ENV.fetch("#{prefix}_HOST")
-      end
+      redshift_hash[:driver] = ENV.fetch("#{prefix}_DRIVER", 'Amazon Redshift (x64)')
+      redshift_hash[:server] = ENV.fetch("#{prefix}_HOST")
       redshift_hash
     end
 
@@ -84,8 +77,7 @@ module ETL
     def redshift(&b)
       get_envvars = is_true_value(ENV.fetch('ETL_REDSHIFT_ENVVARS', false))
       @redshift ||= if get_envvars
-                      use_odbc_dsn_connection = is_true_value(ENV.fetch('etl_redshift_odbc_connection', false))
-                      value = redshift_env_vars(use_odbc_dsn_connection: use_odbc_dsn_connection)
+                      value = redshift_env_vars
                       { etl: value, test: value}
                     else
                       self.class.load_file(redshift_file)
@@ -113,7 +105,7 @@ module ETL
       yield @influx if block_given?
       @influx
     end
-    
+
     def sqs(&b)
       if @sqs.nil?
         sqs_hash = {}

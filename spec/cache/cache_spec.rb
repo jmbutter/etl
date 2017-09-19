@@ -8,10 +8,23 @@ RSpec.describe "cache" do
         { "id" => "1", "bento" => "b2", "info" => "foo1" },
         { "id" => "2", "bento" => "b2", "info" => "other" },
       ]
-      cache = ::ETL::Cache::Base.new(["id"])
+      cache = ::ETL::Cache::Base.new(["id"], false)
       cache.fill(data)
-      expect(cache.find_rows({"id" => 1})).to eq([{"id"=>"1", "bento"=>"b1", "info"=>"foo"}, {"id"=>"1", "bento"=>"b2", "info"=>"foo1"}])
-      expect(cache.find_rows({"id" => 2})).to eq([{"id"=>"2", "bento"=>"b2", "info"=>"other"}])
-      expect(cache.find_rows({"id" => 3})).to eq(nil)
+      expect(cache.find_rows({"id" => "1"})).to eq([{"id"=>"1", "bento"=>"b1", "info"=>"foo"}, {"id"=>"1", "bento"=>"b2", "info"=>"foo1"}])
+      expect(cache.find_rows({"id" => "2"})).to eq([{"id"=>"2", "bento"=>"b2", "info"=>"other"}])
+      expect(cache.find_rows({"id" => "3"})).to eq(nil)
+  end
+  
+  it "properly finds cached row with symbolized rows" do
+      data = [
+        { :id => "1", :bento => "b1", :info => "foo" },
+        { :id => "1", :bento => "b2", :info => "foo1" },
+        { :id => "2", :bento => "b2", :info => "other" },
+      ]
+      cache = ::ETL::Cache::Base.new(["id"], true)
+      cache.fill(data)
+      expect(cache.find_rows({:id => "1"})).to eq([{:id=>"1", :bento=>"b1", :info=>"foo"}, {:id=>"1", :bento =>"b2", :info =>"foo1"}])
+      expect(cache.find_rows({:id => "2"})).to eq([{:id=>"2", :bento=>"b2", :info=>"other"}])
+      expect(cache.find_rows({:id => "3"})).to eq(nil)
   end
 end

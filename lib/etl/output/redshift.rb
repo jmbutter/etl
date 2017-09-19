@@ -20,7 +20,7 @@ module ETL::Output
       @random_key = [*('a'..'z'),*('0'..'9')].shuffle[0,10].join
       @delimiter = delimiter
       @create_table = create_table
-      @client = ::ETL::Redshift::Client.new(conn_params)
+      @client = ::ETL::Redshift::Client.new(conn_params, aws_params)
     end
 
     def csv_file
@@ -28,7 +28,7 @@ module ETL::Output
     end
 
     def exec_query(sql)
-      @client.execute(sql)
+      @client.fetch(sql)
     end
 
     # Name of the destination table. By default we assume this is the class
@@ -132,7 +132,7 @@ SQL
         sql = <<SQL
 delete from #{dest_table};
 SQL
-        @client.execute(sql)
+        @client.execute_dui(sql)
       else
         raise ETL::OutputError, "Invalid load strategy '#{load_strategy}'"
       end
@@ -156,7 +156,7 @@ SQL
         select * from #{tmp_table}
 SQL
 
-        r = @client.execute(sql)
+        r = @client.fetch(sql)
 
         if @load_strategy == :upsert
           sql = <<SQL
@@ -164,13 +164,13 @@ SQL
           USING #{tmp_table} s
           WHERE #{pks.collect{ |pk| "#{dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
 SQL
-          @client.execute(sql)
+          @client.execute_dui(sql)
 
           sql = <<SQL
           INSERT INTO #{dest_table}
           SELECT * FROM #{tmp_table}
 SQL
-          @client.execute(sql)
+          @client.execute_insert(sql)
 
         # handle upsert(primary key is required)
         elsif @load_strategy == :update

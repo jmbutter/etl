@@ -46,9 +46,9 @@ RSpec.describe "redshift2" do
       sleep(5)
 
       data = [
-        { "id" => "4", "info" => "bar", "bento" => "c" },
-        { "id" => "1", "info" => "bar", "bento" => "a" },
-        { "id" => "5", "info" => "other", "bento" => "a" },
+        { :id => "4", :info => "bar", :bento => "c" },
+        { :id => "1", :info => "bar", :bento => "a" },
+        { :id => "5", :info => "other", :bento => "a" },
       ]
 
       # test output to multiple tables.
@@ -62,18 +62,18 @@ RSpec.describe "redshift2" do
       output.reader = input
       result = output.run
 
-      r = client.execute("Select * from #{table_name} ORDER BY id")
+      r = client.fetch("Select * from #{table_name} ORDER BY id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"1", "bento"=>"a"}, {"id"=>"4", "bento"=>"c"}, {"id"=>"5", "bento"=>"a"}])
+      expect(values).to eq([{:id=>"1", :bento=>"a"}, {:id=>"4", :bento=>"c"}, {:id=>"5", :bento=>"a"}])
 
-      r = client.execute("Select * from #{table_name_2} ORDER BY id")
+      r = client.fetch("Select * from #{table_name_2} ORDER BY id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"1", "info"=>"bar"}, {"id"=>"4", "info"=>"bar"}, {"id"=>"5", "info"=>"other"}])
+      expect(values).to eq([{:id=>"1", :info=>"bar"}, {:id=>"4", :info=>"bar"}, {:id=>"5", :info=>"other"}])
 
       single_table_data = [
-        { "id" => "10", "info" => "bar", "bento" => "c" },
+        { :id => "10", :info => "bar", :bento => "c" },
       ]
 
       # test when there is only one table used.
@@ -82,10 +82,10 @@ RSpec.describe "redshift2" do
       output.reader = input
       result = output.run
 
-      r = client.execute("Select * from #{table_name} ORDER BY id")
+      r = client.fetch("Select * from #{table_name} ORDER BY id")
       values = []
       r.each { |h| values << h }
-      expect(values).to eq([{"id"=>"1", "bento"=>"a"}, {"id"=>"10", "bento"=>"c"}, {"id"=>"4", "bento"=>"c"}, {"id"=>"5", "bento"=>"a"}])
+      expect(values).to eq([{:id=>"1", :bento=>"a"}, {:id=>"10", :bento=>"c"}, {:id=>"4", :bento=>"c"}, {:id=>"5", :bento=>"a"}])
     end
   end
 end
