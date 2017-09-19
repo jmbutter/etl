@@ -117,8 +117,7 @@ FROM
 WHERE
   o.contype = 'f' AND m.relname = '#{table_name}' AND o.conrelid IN (SELECT oid FROM pg_class c WHERE c.relkind = 'r');
 SQL
-      fks = []
-      fetch(fks_sql).each { |fk| fks << fk }
+      fks = fetch(fks_sql).map
       ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
     end
 
@@ -262,7 +261,6 @@ SQL
       values_by_table = {}
       rows.each do |key, split_row|
         table_schema = table_schemas_lookup[key]
-        identity_key_name = table_schema.identity_key[:column].to_s unless table_schema.identity_key.nil?
 
         split_rows = []
         split_rows = if split_row.is_a? Array
@@ -274,7 +272,6 @@ SQL
         split_rows.each do |r|
           values_arr = []
           table_schema.columns.keys.each do |c|
-            next if identity_key_name == c
             values_arr << (r[c.to_sym] if r.key?(c.to_sym)) if @row_columns_symbolized
             values_arr << (r[c] if r.key?(c)) unless @row_columns_symbolized
           end

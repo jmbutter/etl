@@ -46,7 +46,7 @@ module ETL
         dist_key = nil
         columns_info.each do |col|
           col_name = col[:column_name]
-          raise 'col name is nil' if col_name.nil?
+          raise "Column name provided in the column info for table #{@name} is nil" if col_name.nil?
           ordinal_pos = col[:ordinal_position].to_i
           nullable = bool_convert(col[:is_nullable], true)
           data_type = col[:data_type]
