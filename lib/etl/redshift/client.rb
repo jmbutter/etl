@@ -13,7 +13,7 @@ module ETL::Redshift
   # Class that contains shared logic for accessing Redshift.
   class Client
     include ETL::CachedLogger
-    attr_accessor :db, :region, :iam_role, :bucket, :delimiter, :row_columns_symbolized
+    attr_accessor :db, :region, :iam_role, :bucket, :delimiter, :row_columns_symbolized, :cache_table_schema_lookup
 
     # when odbc driver is fully working the use redshift driver can
     # default to true
@@ -31,6 +31,8 @@ module ETL::Redshift
       @odbc_conn_params = { database: dsn, password: password, user: user }
       ObjectSpace.define_finalizer(self, proc { db.disconnect })
       @row_columns_symbolized = true
+      @cache_table_schema_lookup = true
+      @cached_table_schemas = {}
     end
 
     def db
@@ -75,6 +77,9 @@ module ETL::Redshift
     end
 
     def table_schema(table_name)
+      cached_table = nil
+      cached_table = @cached_table_schemas[table_name] if @cache_table_schema_lookup
+      return cached_table unless cached_table.nil?
       information_schema_columns_sql = <<SQL
 select i.column_name, i.table_name, i.ordinal_position, i.is_nullable, i.data_type, i.character_maximum_length, i.numeric_precision, i.numeric_precision_radix, i.numeric_scale, i.udt_name, pg_table_def.distkey, pg_table_def.sortkey
 from information_schema.columns as i left outer join pg_table_def
@@ -118,7 +123,9 @@ WHERE
   o.contype = 'f' AND m.relname = '#{table_name}' AND o.conrelid IN (SELECT oid FROM pg_class c WHERE c.relkind = 'r');
 SQL
       fks = fetch(fks_sql).map
-      ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
+      table = ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
+      @cached_table_schemas[table.name] = table if @cache_table_schema_lookup
+      table
     end
 
     def columns(table_name)
