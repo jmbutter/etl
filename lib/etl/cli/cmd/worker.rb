@@ -6,10 +6,18 @@ module ETL::Cli::Cmd
   class Worker < ETL::Cli::Command
     # Starts the infinite loop that processes jobs from the queue
     def execute
+      notifier = ::ETL::Slack::Notifier.create_instance("etl_worker")
+
+      begin
+        ETL.load_user_classes
+      rescue StandardError => e
+        notifier.notify("loading jobs in etl worker failed: #{e.to_s}") unless notifier.nil?
+        throw
+      end
       with_log do
         ETL.queue.process_async do |message_info, payload|
           begin
-            log.debug("Payload from queue: #{payload.to_s}")
+            log.debug("Payload: #{payload.to_s}")
             ETL::Job::Exec.new(payload).run
           rescue StandardError => ex
             # Log and ignore all exceptions. We want other jobs in the queue
