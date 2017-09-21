@@ -31,7 +31,7 @@ module ETL::Queue
     end
 
     def to_s
-      "#{self.class.name}<#{@params[:amqp_uri]}/#{@params[:vhost]}/#{@params[:queue]}>"
+      "#{self.class.name}: #{@queue_url}"
     end
 
     def enqueue(payload)
