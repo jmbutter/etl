@@ -29,7 +29,7 @@ module ETL::Redshift
       user = conn_params.fetch(:username, nil) || conn_params.fetch(:user, '')
       raise 'No user was provided in the connection parameters' if user.empty?
       @odbc_conn_params = { database: dsn, password: password, user: user }
-      ObjectSpace.define_finalizer(self, proc { db.disconnect })
+      ObjectSpace.define_finalizer(self, proc { @db.disconnect unless @db.nil? })
       @row_columns_symbolized = true
       @cache_table_schema_lookup = true
       @cached_table_schemas = {}
