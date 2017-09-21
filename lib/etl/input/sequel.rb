@@ -21,6 +21,7 @@ module ETL::Input
     def conn
       @conn ||= ::Sequel.connect(@params)
       @conn.test_connection if @test_connection
+      @conn
     end
 
     # Display connection string for this input
