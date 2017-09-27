@@ -10,7 +10,8 @@ RSpec.describe 'redshift' do
     let(:random_key) { [*('a'..'z'), *('0'..'9')].sample(10).join }
     let(:s3_destination) { "#{bucket}/#{table_name}_#{random_key}" }
     it 'connect and create and delete a table' do
-      client.drop_table(table_name)
+      client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
+      client2.drop_table(table_name)
       other_table = ETL::Redshift::Table.new(:other_table)
       other_table.int('id')
       other_table.add_primarykey('id')
@@ -22,14 +23,15 @@ RSpec.describe 'redshift' do
       table.add_fk(:fk_id, 'other_table', 'id')
       table.add_primarykey('id')
 
-      client.create_table(other_table)
-      client.create_table(table)
+      client2.create_table(other_table)
+      client2.create_table(table)
 
       found_table = client.table_schema(table_name)
       expect(found_table.fks).to eq(['fk_id'])
       expect(found_table.columns['fk_id'].fk).to eq(column: 'id', table: 'other_table')
-      client.drop_table(table_name)
-      client.drop_table('other_table')
+      client2.drop_table(table_name)
+      client2.drop_table('other_table')
+      client2.disconnect
     end
 
     it 'get table schema' do

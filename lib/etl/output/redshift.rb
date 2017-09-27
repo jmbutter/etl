@@ -250,8 +250,12 @@ SQL
 
         # delete s3 data
         delete_object_from_s3
+
+        # delete local file
+        ::File.delete(csv_file.path)
       end
 
+      @client.disconnect
       msg = "Processed #{rows_processed} input rows for #{dest_table}"
       ETL::Job::Result.success(rows_processed, msg)
     end
