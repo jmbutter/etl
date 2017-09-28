@@ -29,10 +29,14 @@ module ETL::Redshift
       user = conn_params.fetch(:username, nil) || conn_params.fetch(:user, '')
       raise 'No user was provided in the connection parameters' if user.empty?
       @odbc_conn_params = { database: dsn, password: password, user: user }
-      ObjectSpace.define_finalizer(self, proc { @db.disconnect unless @db.nil? })
+      ObjectSpace.define_finalizer(self, proc { disconnect })
       @row_columns_symbolized = true
       @cache_table_schema_lookup = true
       @cached_table_schemas = {}
+    end
+
+    def disconnect
+      @db.disconnect unless @db.nil?
     end
 
     def db
@@ -218,6 +222,9 @@ SQL
           tmp_table = create_staging_table(t)
           s3_resource = Aws::S3::Resource.new(region: @region)
           s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
+
+          # Delete the local file to not fill up that machine.
+          ::File.delete(local_file_path)
 
           copy_from_s3(tmp_table, s3_path)
           where_id_join = ''
