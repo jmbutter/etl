@@ -26,7 +26,7 @@ RSpec.describe 'redshift' do
       client2.create_table(other_table)
       client2.create_table(table)
 
-      found_table = client.table_schema(table_name)
+      found_table = client2.table_schema(table_name)
       expect(found_table.fks).to eq(['fk_id'])
       expect(found_table.columns['fk_id'].fk).to eq(column: 'id', table: 'other_table')
       client2.drop_table(table_name)
