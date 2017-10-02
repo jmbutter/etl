@@ -92,12 +92,12 @@ module ETL::Queue
           # to still process even though this one is skipped.
           log.exception(ex)
         end
+      end
 
-        # Just sleep indefinitely so the program doesn't end. This doesn't pause the
-        # above block.
-        while true
-          sleep(10)
-        end
+      # Just sleep indefinitely so the program doesn't end. This doesn't pause the
+      # above block.
+      while true
+        sleep(10)
       end
     end
   end
