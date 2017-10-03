@@ -7,6 +7,36 @@ require 'etl/redshift/table'
 module ETL::Cli::Cmd
   class Migration < ETL::Cli::Command
 
+    class Initialize < ETL::Cli::Command
+      option "--table", "TABLE", "table name", :required => true
+      option "--host", "Host", attribute_name: :host
+      option "--port", "Port", attribute_name: :port
+      option "--user", "User", attribute_name: :user
+      option "--password", "Password", attribute_name: :password
+      option "--database", "Database", attribute_name: :database
+      option "--outputfile", "Output file to create initial mappings", :attribute_name => :outputfile, :required => true
+
+      def execute
+        conn_params = { host: @host, adapter: "mysql2", database: @database, user: @user, password: @password, port: @port}
+
+        puts conn_params
+        db  = ::Sequel.connect(conn_params)
+        schema = db.schema(@table)
+        File.open(@outputfile, 'w') do |file|
+          file.write("#{@table}:\n")
+          file.write("  source_db_params:\n")
+          file.write("    host: #{@host}\n")
+          file.write("    port: #{@port}\n")
+          file.write("    adapter: mysql2\n")
+          file.write("    database: #{@database}\n")
+          file.write("    user: #{@user}\n")
+          file.write("    password: #{@password}\n")
+          file.write("  columns:\n")
+          schema.select { |column, types| file.write("   \"#{column}\": \"#{column}\"\n") }
+        end
+      end
+    end
+
     class Create < ETL::Cli::Command
 
       option "--table", "TABLE", "table name", :required => true
@@ -228,6 +258,7 @@ END
       end
     end
 
+    subcommand 'initialize', 'Creates a basic column mapping file from the source columns', Migration::Initialize
     subcommand 'create', 'Create migration', Migration::Create
   end
 end
