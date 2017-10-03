@@ -19,7 +19,6 @@ module ETL::Cli::Cmd
       def execute
         conn_params = { host: @host, adapter: "mysql2", database: @database, user: @user, password: @password, port: @port}
 
-        puts conn_params
         db  = ::Sequel.connect(conn_params)
         schema = db.schema(@table)
         File.open(@outputfile, 'w') do |file|
