@@ -9,15 +9,21 @@ module ETL::Cli::Cmd
 
     class Initialize < ETL::Cli::Command
       option "--table", "TABLE", "table name", :required => true
+      option "--adpater", "Adapter", attribute_name: :host
       option "--host", "Host", attribute_name: :host
       option "--port", "Port", attribute_name: :port
       option "--user", "User", attribute_name: :user
       option "--password", "Password", attribute_name: :password
       option "--database", "Database", attribute_name: :database
-      option "--outputfile", "Output file to create initial mappings", :attribute_name => :outputfile, :required => true
+      option "--outputfile", "Output file to create initial mappings", :attribute_name => :outputfile
 
       def execute
-        conn_params = { host: @host, adapter: "mysql2", database: @database, user: @user, password: @password, port: @port}
+        @host = "127.0.0.1" if @host.nil?
+        @port = 3306 if @port.nil?
+        @adapter = "mysql2" if @adapter.nil?
+        @user = "root" if @user.nil?
+        @outputfile = "#{@table}.yml" if @outputfile.nil?
+        conn_params = { host: @host, adapter: @adapter, database: @database, user: @user, password: @password, port: @port}
 
         db  = ::Sequel.connect(conn_params)
         schema = db.schema(@table)
