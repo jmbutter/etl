@@ -6,7 +6,7 @@ module ETL::Input
   # just supports raw SQL with query param replacement.
   # https://github.com/jeremyevans/sequel
   class Sequel < Base
-    attr_accessor :params, :sql, :sql_params, :test_connection
+    attr_accessor :params, :sql, :sql_params, :test_connection, :disconnect_required
 
     # Construct reader based on Sequel connection params and SQL query
     def initialize(params, sql = nil, sql_params = nil)
@@ -70,6 +70,7 @@ module ETL::Input
       else
         conn.fetch(sql, *@sql_params, &row_proc)
       end
+      conn.disconnect if @disconnect_required
     end
   end
 end
