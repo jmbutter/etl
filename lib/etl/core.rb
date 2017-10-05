@@ -83,40 +83,67 @@ module ETL
     Object::const_get(cfg[:class]).new(cfg)
   end
 
+  def ETL.load_user_commands
+    cl = ClassLoader.new("Loading user command classes:", "_command.rb")
+    cl.load(ETL.user_dirs)
+  end
+
   # load all user job classes
   def ETL.load_user_classes
-    class_dirs_map = {}
-    if c = ETL.config.core.fetch(:default, {})[:class_dir]
-      find_dirs(c, class_dirs_map)
-    end
-    if c = ETL.config.core[:job][:class_dir]
-      find_dirs(c, class_dirs_map)
-    end
-    class_dirs_map.keys.each do |c|
-      load_class_dir(c)
-    end
+    cl = ClassLoader.new("Loading user file class:")
+    cl.load(ETL.user_dirs)
   end
 
   private
-
-  # loading the sub directories of the supplied base directory. Adding dirs to hash in case there are duplicates to remove them
-  def ETL.find_dirs(dir, dirs_map)
-      Dir.entries(dir).select {|entry| File.directory? File.join(dir ,entry) and !(entry =='.' || entry == '..') }.each  do | f|
-        dirs_map["#{dir}/#{f}"] = true
-      end
-      dirs_map[dir] = true
+  def ETL.user_dirs
+    dirs = []
+    if c  = ETL.config.core.fetch(:default, {})[:class_dir]
+      dirs << c
+    end
+    if c = ETL.config.core[:job][:class_dir]
+      dirs << c
+    end
+    dirs
   end
 
-  # Function to load external classes in the specified directory
-  def ETL.load_class_dir(class_dir)
-    unless class_dir.start_with?("/")
-      class_dir = ETL.root + "/" + class_dir
+  class ClassLoader
+    def initialize(add_message, optional_ends_with = nil)
+      @add_message = add_message
+      @optional_ends_with = optional_ends_with
     end
-    ::Dir.new(class_dir).each do |file|
-      next unless file =~ /\.rb$/
-      path = class_dir + "/" + file
-      ETL.logger.debug("Loading user file #{path}")
-      require path
+    def load(starting_dirs)
+      @dirs_map = {}
+      starting_dirs.each do |dir|
+        find_dirs(dir)
+      end
+      @dirs_map.each do |dir_path, _value|
+        load_classes_in_dir(dir_path)
+      end
+    end
+
+    # loading the sub directories of the supplied base directory. Adding dirs to hash in case there are duplicates to remove them
+    def find_dirs(dir)
+        unless dir.start_with?("/")
+          dir = ETL.root + "/" + dir
+        end
+        Dir.entries(dir).select {|entry| File.directory? File.join(dir ,entry) and !(entry =='.' || entry == '..') }.each  do | f|
+          @dirs_map["#{dir}/#{f}"] = true
+        end
+        @dirs_map[dir] = true
+    end
+
+    def load_classes_in_dir(class_dir)
+      ::Dir.new(class_dir).each do |file|
+        next unless file =~ /\.rb$/
+        path = class_dir + "/" + file
+        load_class(path)
+      end
+    end
+
+    def load_class(file_path)
+      return if !@optional_ends_with.nil? && !file_path.end_with?(@optional_ends_with)
+      ETL.logger.debug("#{@add_message} #{file_path}")
+      require file_path
     end
   end
 end

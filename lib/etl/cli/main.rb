@@ -18,12 +18,10 @@ module ETL::Cli
     require_relative './cmd/schema'
     subcommand 'schema', "Manages schema for ETL system jobs", Cmd::Schema
 
-    require_relative './cmd/migration'
-    subcommand 'migration', "Migrate schema for ETL jobs", Cmd::Migration
-
     require_relative './cmd/worker'
     subcommand 'worker', "Process for executing queued ETL jobs", Cmd::Worker
 
+    ::ETL.load_user_commands
     CommandExtensionManager.instance.commands.each do |name, c|
       subcommand name, c[:description], c[:command]
     end
