@@ -1,8 +1,8 @@
 require_relative './command'
+require_relative './command_extension_manager'
 
 module ETL::Cli
   class Main < Command
-
     require_relative './cmd/config'
     subcommand 'config', "Checks on ETL system configuration ", Cmd::Config
 
@@ -23,5 +23,9 @@ module ETL::Cli
 
     require_relative './cmd/worker'
     subcommand 'worker', "Process for executing queued ETL jobs", Cmd::Worker
+
+    CommandExtensionManager.instance.commands.each do |name, c|
+      subcommand name, c[:description], c[:command]
+    end
   end
 end
