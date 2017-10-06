@@ -21,17 +21,21 @@ module ETL
     def context=(h)
       @formatter.context = h
     end
-    
+
     def exception(ex, severity = Logger::ERROR)
+      add(severity) { self.class.create_exception_message(ex) }
+    end
+
+    def self.create_exception_message(ex)
       msg = "#{ex.class}: #{ex.message}:\n    "
       if ex.backtrace
         msg += ex.backtrace.join("    \n")
       else
         msg += "<no backtrace available>"
       end
-      add(severity) { msg }
+      msg
     end
-    
+
     # Converts string representation of severity into a Logger constant
     def self.string_to_severity(str)
       return ::Logger::INFO unless str

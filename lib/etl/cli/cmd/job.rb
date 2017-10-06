@@ -15,6 +15,7 @@ module ETL::Cli::Cmd
         begin
           ETL.load_user_classes
         rescue StandardError => e
+          ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
           notifier.notify("Listing jobs failed: #{e.to_s}") unless notifier.nil?
           throw
         end
@@ -48,12 +49,13 @@ module ETL::Cli::Cmd
       option ['-m', '--match'], :flag, "Treat job ID as regular expression filter and run matching jobs"
 
       def execute
-        notifier = ::ETL::Slack::Notifier.create_instance("etl_list")
+        notifier = ::ETL::Slack::Notifier.create_instance("etl_run")
 
         begin
           ETL.load_user_classes
         rescue StandardError => e
-          notifier.notify("Running jobs failed: #{e.to_s}") unless notifier.nil?
+          ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
+          notifier.notify("Running jobs failed: #{e.backtrace}") unless notifier.nil?
           throw
         end
 
@@ -77,11 +79,13 @@ module ETL::Cli::Cmd
                 begin
                   run_batch(id, batch)
                 rescue StandardError => e
-                  notifier.notify("Running batch #{batch.to_s} failed: #{e.to_s}") unless notifier.nil?
+                  ETL.logger.exception(e, Logger::DEBUG)
+                  notifier.exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
                 end
               end
             rescue StandardError => e
-              notifier.notify("Making batch factory failed: #{e.to_s}") unless notifier.nil?
+              ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
+              notifier.exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
             end
           end
         end
