@@ -25,12 +25,14 @@ module ETL::Cli::Cmd
 
     def run_iteration
       log.debug("Start scheduling iteration")
+      notifier = ::ETL::Slack::Notifier.create_instance("etl_scheduler")
       job_manager.job_classes.each do |job_id, klass|
         begin
           process_job_class(job_id, klass)
         rescue StandardError => ex
           # Log and ignore all exceptions so that one job doesn't affect others
           log.error("Scheduling job #{job_id} encountered an error")
+          notifier.exception("Scheduler run iteration for job: #{job_id} failed", e) unless notifier.nil?
           log.exception(ex)
         end
       end

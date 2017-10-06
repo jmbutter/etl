@@ -1,7 +1,8 @@
 require 'slack-notifier'
+require_relative '../util/logger'
 
 module ETL::Slack
-  class Notifier 
+  class Notifier
     attr_accessor :attachments
     def self.create_instance(id)
       notifier ||= begin
@@ -20,21 +21,26 @@ module ETL::Slack
       @attachments = []
     end
 
+    def notify_exception(message, exception, icon_emoji: ":beetle:", attachments: @attachments)
+      msg = ::ETL::Logger.create_exception_message(exception)
+      @notifier.ping "#{message}: #{msg}", icon_emoji: icon_emoji, attachments: attachments
+    end
+
     def notify(message, icon_emoji: ":beetle:", attachments: @attachments)
       @notifier.ping message, icon_emoji: icon_emoji, attachments: attachments
     end
-    
+
     def set_color(color)
       if @attachments.empty?
-        @attachments = [{ "color": color }] 
+        @attachments = [{ "color": color }]
       else
-        @attachments[0][:color] = color 
+        @attachments[0][:color] = color
       end
     end
 
-    def add_text_to_attachments(txt) 
+    def add_text_to_attachments(txt)
       if @attachments.empty?
-        @attachments = [{ "text": txt }] 
+        @attachments = [{ "text": txt }]
       else
         if @attachments[0].include? :text
           @attachments[0][:text] += "\n" + txt
@@ -46,7 +52,7 @@ module ETL::Slack
 
     def add_field_to_attachments(field)
       if @attachments.empty?
-        @attachments = [{ "fields": [ field ] }] 
+        @attachments = [{ "fields": [ field ] }]
       else
         if @attachments[0].include? :fields
           @attachments[0][:fields].push(field)

@@ -36,7 +36,7 @@ module ETL::Job
       notifier = job.notifier
       unless notifier.nil?
         host_name = Socket.gethostname
-        notifier.notify("Starts running on #{host_name}") 
+        notifier.notify("Starts running on #{host_name}")
       end
 
       begin
@@ -79,11 +79,11 @@ module ETL::Job
 
         # we aren't retrying anymore - log this error
         jr.exception(ex)
-        notifier.add_field_to_attachments({ "title" => "Error message", "value" => "DatabaseError #{ex}"}) unless notifier.nil?
+        notifier.add_field_to_attachments({ "title" => "Error message", "value" => ETL::Logger.create_exception_message(ex)}) unless notifier.nil?
       rescue StandardError => ex
         # for all other exceptions: save the message
         jr.exception(ex)
-        notifier.add_field_to_attachments({ "title" => "Error message", "value" => "#{ex}"}) unless notifier.nil?
+        notifier.add_field_to_attachments({ "title" => "Error message", "value" => ETL::Logger.create_exception_message(ex)}) unless notifier.nil?
       end
 
       if !notifier.nil?
@@ -127,7 +127,7 @@ module ETL::Job
     def job_manager
       ETL::Job::Manager.instance
     end
-    
+
     def self.create_job(job_id, klass, batch)
       job_manager = ::ETL::Job::Manager.instance
 
