@@ -6,12 +6,15 @@ module ETL::Cache
   class Base
     def self.hash_column_values(columns, row, symbolized)
       # Avoid hash computation of there is one key
-      return row[columns[0].to_sym] if columns.count == 1 && symbolized
-      return row[columns[0]] if columns.count == 1
+      if columns.count > 1
+        return row[columns[0].to_sym] if symbolized
+        return row[columns[0]]
+      end
 
       key_values = []
       columns.each do |c|
-        key_values << row[c]
+        key_values << row[c.to_sym] if symbolized
+        key_values << row[c] unless symbolized
       end
       Base64.encode64(key_values.join('|'))
     end
