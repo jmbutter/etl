@@ -92,7 +92,7 @@ RSpec.describe 'schedule/daily_time_schedule' do
   end
 
   it 'Test DailyTimesByInterval generates right times' do
-    schedule = ::ETL::Schedule::DailyTimesByInterval.new('0:05', 360, job, batch)
-    expect(schedule.times.to_s).to eq('[2017-10-11 00:05:00 -0700, 2017-10-11 06:05:00 -0700, 2017-10-11 12:05:00 -0700, 2017-10-11 18:05:00 -0700]')
+    schedule = ::ETL::Schedule::DailyTimesByInterval.new('2017-10-11 00:05:00 UTC', 360, job, batch)
+    expect(schedule.times.to_s).to eq('[2017-10-11 00:05:00 UTC, 2017-10-11 06:05:00 UTC, 2017-10-11 12:05:00 UTC, 2017-10-11 18:05:00 UTC]')
   end
 end

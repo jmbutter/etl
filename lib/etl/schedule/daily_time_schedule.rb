@@ -45,7 +45,7 @@ module ETL::Schedule
 
   class DailyTimesByInterval < DailyTimes
     def initialize(start_time, interval_mins, job, batch, window_seconds = 65)
-      current_time = Time.parse(start_time)
+      current_time = Time.parse(start_time).utc
       times = []
 
       start_day = current_time.day
