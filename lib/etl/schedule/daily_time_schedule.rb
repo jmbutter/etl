@@ -7,15 +7,12 @@ module ETL::Schedule
   # running.
   class DailyTimes < Base
     attr_accessor :now_generator # added for testability
-    attr_reader :times
+    attr_reader :intervals
 
-    def initialize(times_to_run, job, batch, window_seconds = 65)
+    # intervals represent seconds from midnight
+    def initialize(intervals, job, batch, window_seconds = 65)
       super(job, batch)
-      @times = []
-      times_to_run.map do |v|
-        @times << Time.parse(v) if v.is_a?(String)
-        @times << v if v.is_a?(Time)
-      end
+      @intervals = intervals
       @window_seconds = window_seconds
     end
 
@@ -24,17 +21,25 @@ module ETL::Schedule
     def ready?
       has_pending = ::ETL::Model::JobRunRepository.instance.has_pending?(@job, @batch)
       return false if has_pending
-      last_ended = ::ETL::Model::JobRunRepository.instance.last_ended(@job, @batch)
+      last_ended_job = ::ETL::Model::JobRunRepository.instance.last_ended(@job, @batch)
+      last_ended = nil
+      last_ended_mins_from_midnight = convert_seconds_from_midnight(last_ended_job.ended_at) unless last_ended_job.nil?
       now = get_current_time
-
+      now_seconds_from_midnight = convert_seconds_from_midnight(now)
+      
       # ensure that the last time the job was run was before now.
-      @times.each do |start_window|
-        end_window = start_window + @window_seconds
-        return false if last_ended > start_window && last_ended < end_window unless last_ended.nil?
+      @intervals.each do |initial_interval|
+        start_interval = initial_interval - @window_seconds/2
+        end_interval = start_interval + @window_seconds
+        return false if last_ended.day == now.day && last_ended.month == now.month && last_ended.year == now.year && last_ended_mins_from_midnight > start_interval && last_ended_mins_from_midnight < end_window unless last_ended.nil?
 
-        return true if now > start_window && now < end_window
+        return true if now_seconds_from_midnight > start_interval && now_seconds_from_midnight < end_interval
       end
       false
+    end
+
+    def convert_seconds_from_midnight(time)
+      time.hour * 60 * 60 + time.min * 60 + time.sec
     end
 
     def get_current_time
@@ -45,16 +50,19 @@ module ETL::Schedule
 
   class DailyTimesByInterval < DailyTimes
     def initialize(start_time, interval_mins, job, batch, window_seconds = 65)
-      current_time = Time.parse(start_time).utc
-      times = []
+      values = start_time.split(":")
+      start_from_midnight_seconds = 0
+      start_from_midnight_seconds = values[0].to_i * 60 * 60  if values.count > 0 # hours to minutes to seconds
+      start_from_midnight_seconds += values[1].to_i * 60 if values.count > 1 # minutes to seconds
+      start_from_midnight_seconds += values[2].to_i if values.count > 2 # minutes to seconds
 
-      start_day = current_time.day
-      while current_time.day == start_day
-        times << current_time
-        current_time += interval_mins * 60
+      current = start_from_midnight_seconds
+      intervals = []
+      while  current < 86401
+        intervals << current
+        current += interval_mins * 60
       end
-      puts # {
-      super(times, job, batch, window_seconds)
+      super(intervals, job, batch, window_seconds)
     end
   end
 end
