@@ -55,7 +55,7 @@ module ETL::Cli::Cmd
           ETL.load_user_classes
         rescue StandardError => e
           ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
-          notifier.notify("Running jobs failed: #{e.backtrace}") unless notifier.nil?
+          notifier.notify_exception("Loading jobs failed:", e) unless notifier.nil?
           throw
         end
 
@@ -80,12 +80,12 @@ module ETL::Cli::Cmd
                   run_batch(id, batch)
                 rescue StandardError => e
                   ETL.logger.exception(e, Logger::DEBUG)
-                  notifier.exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
+                  notifier.notify_exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
                 end
               end
             rescue StandardError => e
               ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
-              notifier.exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
+              notifier.notify_exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
             end
           end
         end
