@@ -12,7 +12,7 @@ module ETL::Cli::Cmd
         ETL.load_user_classes
       rescue StandardError => e
         ETL.logger.exception(e, Logger::DEBUG)
-        notifier.exception("loading jobs in etl worker failed:", e) unless notifier.nil?
+        notifier.notify_exception("loading jobs in etl worker failed:", e) unless notifier.nil?
         throw
       end
       ETL.queue.handle_incoming_messages

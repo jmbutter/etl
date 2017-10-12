@@ -30,7 +30,7 @@ module ETL::Schedule
       # ensure that the last time the job was run was before now.
       @times.each do |start_window|
         end_window = start_window + @window_seconds
-        return false if last_ended > start_window && last_ended < end_window
+        return false if last_ended > start_window && last_ended < end_window unless last_ended.nil?
 
         return true if now > start_window && now < end_window
       end

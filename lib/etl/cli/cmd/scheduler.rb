@@ -32,7 +32,7 @@ module ETL::Cli::Cmd
         rescue StandardError => ex
           # Log and ignore all exceptions so that one job doesn't affect others
           log.error("Scheduling job #{job_id} encountered an error")
-          notifier.exception("Scheduler run iteration for job: #{job_id} failed", ex) unless notifier.nil?
+          notifier.notify_exception("Scheduler run iteration for job: #{job_id} failed", ex) unless notifier.nil?
           log.exception(ex)
         end
       end
