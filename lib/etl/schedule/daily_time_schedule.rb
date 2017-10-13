@@ -26,12 +26,12 @@ module ETL::Schedule
       last_ended_mins_from_midnight = convert_seconds_from_midnight(last_ended_job.ended_at) unless last_ended_job.nil?
       now = get_current_time
       now_seconds_from_midnight = convert_seconds_from_midnight(now)
-      
+
       # ensure that the last time the job was run was before now.
       @intervals.each do |initial_interval|
-        start_interval = initial_interval - @window_seconds/2
+        start_interval = initial_interval - @window_seconds / 2
         end_interval = start_interval + @window_seconds
-        return false if last_ended.day == now.day && last_ended.month == now.month && last_ended.year == now.year && last_ended_mins_from_midnight > start_interval && last_ended_mins_from_midnight < end_window unless last_ended.nil?
+        return false unless last_ended.nil? || !last_ended.day == now.day && last_ended.month == now.month && last_ended.year == now.year && last_ended_mins_from_midnight > start_interval && last_ended_mins_from_midnight < end_window
 
         return true if now_seconds_from_midnight > start_interval && now_seconds_from_midnight < end_interval
       end
@@ -50,15 +50,15 @@ module ETL::Schedule
 
   class DailyTimesByInterval < DailyTimes
     def initialize(start_time, interval_mins, job, batch, window_seconds = 65)
-      values = start_time.split(":")
+      values = start_time.split(':')
       start_from_midnight_seconds = 0
-      start_from_midnight_seconds = values[0].to_i * 60 * 60  if values.count > 0 # hours to minutes to seconds
+      start_from_midnight_seconds = values[0].to_i * 60 * 60 if values.count > 0 # hours to minutes to seconds
       start_from_midnight_seconds += values[1].to_i * 60 if values.count > 1 # minutes to seconds
       start_from_midnight_seconds += values[2].to_i if values.count > 2 # minutes to seconds
 
       current = start_from_midnight_seconds
       intervals = []
-      while  current < 86401
+      while current < 86_401
         intervals << current
         current += interval_mins * 60
       end

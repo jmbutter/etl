@@ -19,7 +19,7 @@ module Testing
 
     def last_ended(_job, _batch)
       jr = ETL::Model::JobRun.new(nil)
-      jr.ended_at =  @last_ended_time
+      jr.ended_at = @last_ended_time
       jr
     end
   end
@@ -48,7 +48,7 @@ RSpec.describe 'schedule/daily_time_schedule' do
       repo.has_pending = false
       repo.last_ended_time = Time.parse('11:00')
 
-      schedule = ::ETL::Schedule::DailyTimes.new([43200, 45000], job, batch)
+      schedule = ::ETL::Schedule::DailyTimes.new([43_200, 45_000], job, batch)
       schedule.now_generator = Testing::TestTimeGenerator.new('12:00:15')
       expect(schedule.ready?).to eq(true)
 
@@ -62,7 +62,7 @@ RSpec.describe 'schedule/daily_time_schedule' do
     end
   end
 
-  it 'Test Daily Times Job Not Ready as job is currently pending' do
+  it 'Test Daily Times Job Not Ready as job is currently pending/running' do
     saved_instance = ETL::Model::JobRunRepository.instance
     repo = Testing::JobRunRepositoryMock.new
     ETL::Model::JobRunRepository.instance = repo
@@ -72,23 +72,6 @@ RSpec.describe 'schedule/daily_time_schedule' do
 
       schedule = ::ETL::Schedule::DailyTimes.new([1, 30], job, batch)
       schedule.now_generator = Testing::TestTimeGenerator.new('12:01:30 AM')
-      expect(schedule.ready?).to eq(false)
-    ensure
-      ETL::Model::JobRunRepository.instance = saved_instance
-    end
-  end
-
-  it 'Test Daily Times Job Not Ready as job is currently running' do
-    saved_instance = ETL::Model::JobRunRepository.instance
-    repo = Testing::JobRunRepositoryMock.new
-    ETL::Model::JobRunRepository.instance = repo
-
-    begin
-      repo.has_pending = false
-      repo.last_ended_time = Time.parse('12:00:05')
-
-      schedule = ::ETL::Schedule::DailyTimes.new([0], job, batch)
-      schedule.now_generator = Testing::TestTimeGenerator.new('12:00:00 AM')
       expect(schedule.ready?).to eq(false)
     ensure
       ETL::Model::JobRunRepository.instance = saved_instance
