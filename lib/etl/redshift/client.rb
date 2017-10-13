@@ -205,7 +205,7 @@ SQL
 
       csv_files = {}
       csv_file_paths = {}
-
+      file_uploaded = {}
       table_schemas_lookup.keys.each do |t|
         csv_file_paths[t] = temp_file(t)
         csv_files[t] = ::CSV.open(csv_file_paths[t], 'w', col_sep: @delimiter)
@@ -235,6 +235,7 @@ SQL
           tmp_table = create_staging_table(t)
           s3_resource = Aws::S3::Resource.new(region: @region)
           s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
+          file_uploaded[t] = true
 
           # Delete the local file to not fill up that machine.
           ::File.delete(local_file_path)
@@ -257,6 +258,9 @@ begin transaction;
 end transaction;
 SQL
           execute(upsert_data)
+          if file_uploaded[t]
+            s3_resource.bucket(@bucket).object(s3_file_name).delete()
+          end
         end
       end
       rows_processed
