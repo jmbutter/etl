@@ -79,7 +79,6 @@ module ETL::Model
       jr.status = :new
       jr.batch = batch.to_json
       insert_sql = "INSERT INTO #{@schema_name}.job_runs(created_at, updated_at, job_id, batch, status) VALUES ('#{Time.now}','#{Time.at(0)}', '#{job.id}', '#{batch.to_json}', 'new') RETURNING id";
-      log.debug("SQL: '#{insert_sql}'")
       r = conn.exec(insert_sql).values
       if r.length == 0
         return nil
@@ -108,14 +107,12 @@ module ETL::Model
       end
 
       update_sql = update_sql + " WHERE id = #{jr.id}"
-      log.debug("SQL: '#{update_sql}'")
       conn.exec(update_sql)
       jr
     end
 
     def tables
       sql = "SELECT tablename FROM pg_catalog.pg_tables where schemaname = '#{@schema_name}'"
-      log.debug("SQL: '#{sql}'")
       r = conn.exec(sql)
       table_names = []
       r.each do |row|
@@ -162,7 +159,6 @@ module ETL::Model
     def has_pending?(job, batch)
       created_at = Date.today - @pending_job_expiration_days
       sql = "Select count(*) from #{@schema_name}.job_runs where job_id = '#{job.id}' and created_at > '#{created_at.iso8601}' and batch = '#{batch.to_json}' and ( status = 'queued' or status = 'running' );"
-      log.debug("SQL: '#{sql}'")
       r = conn.exec(sql)
       count = r.first["count"].to_i
       count >  0
@@ -171,7 +167,6 @@ module ETL::Model
     # Returns whether there have been any successful runs of this job+batch
     def was_successful?(job, batch)
       sql = "Select * from #{@schema_name}.job_runs where job_id = '#{job.id}' and batch = '#{batch.to_json}' and status = 'success';"
-      log.debug("SQL: '#{sql}'")
       r = conn.exec(sql)
       r.cmd_tuples > 0
     end
@@ -185,7 +180,6 @@ module ETL::Model
     end
 
     def job_run_query(sql)
-      log.debug("SQL: '#{sql}'")
       r = conn.exec(sql)
       job_runs = []
       r.each do |single_result|

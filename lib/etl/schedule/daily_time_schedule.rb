@@ -6,6 +6,8 @@ module ETL::Schedule
   # is responsible for determining if we should be queueing that job for
   # running.
   class DailyTimes < Base
+    include ETL::CachedLogger
+
     attr_accessor :now_generator # added for testability
     attr_reader :intervals
 
@@ -20,7 +22,11 @@ module ETL::Schedule
     # of this schedule object. Looking to run a job within the cron window.
     def ready?
       has_pending = ::ETL::Model::JobRunRepository.instance.has_pending?(@job, @batch)
-      return false if has_pending
+      if has_pending
+        log.debug("Job #{@job.id} is pending or running so not ready to run")
+        return false
+      end
+
       last_ended_job = ::ETL::Model::JobRunRepository.instance.last_ended(@job, @batch)
       last_ended = nil
       last_ended_mins_from_midnight = convert_seconds_from_midnight(last_ended_job.ended_at) unless last_ended_job.nil?
@@ -29,11 +35,17 @@ module ETL::Schedule
 
       # ensure that the last time the job was run was before now.
       @intervals.each do |initial_interval|
-        start_interval = initial_interval - @window_seconds / 2
+        start_interval = initial_interval - @window_seconds/2
         end_interval = start_interval + @window_seconds
-        return false unless last_ended.nil? || !last_ended.day == now.day && last_ended.month == now.month && last_ended.year == now.year && last_ended_mins_from_midnight > start_interval && last_ended_mins_from_midnight < end_window
+        if !last_ended.nil? && last_ended.day == now.day && last_ended.month == now.month && last_ended.year == now.year && last_ended_mins_from_midnight > start_interval && last_ended_mins_from_midnight < end_window
+          log.debug("Job #{@job.id} has already run within the current window")
+          return false
+        end
 
-        return true if now_seconds_from_midnight > start_interval && now_seconds_from_midnight < end_interval
+        if now_seconds_from_midnight > start_interval && now_seconds_from_midnight < end_interval
+          log.debug("Job #{@job.id} should be enqueued to run as its window was found.")
+          return true
+        end
       end
       false
     end
@@ -50,15 +62,15 @@ module ETL::Schedule
 
   class DailyTimesByInterval < DailyTimes
     def initialize(start_time, interval_mins, job, batch, window_seconds = 65)
-      values = start_time.split(':')
+      values = start_time.split(":")
       start_from_midnight_seconds = 0
-      start_from_midnight_seconds = values[0].to_i * 60 * 60 if values.count > 0 # hours to minutes to seconds
+      start_from_midnight_seconds = values[0].to_i * 60 * 60  if values.count > 0 # hours to minutes to seconds
       start_from_midnight_seconds += values[1].to_i * 60 if values.count > 1 # minutes to seconds
       start_from_midnight_seconds += values[2].to_i if values.count > 2 # minutes to seconds
 
       current = start_from_midnight_seconds
       intervals = []
-      while current < 86_401
+      while  current < 86401
         intervals << current
         current += interval_mins * 60
       end
