@@ -119,6 +119,7 @@ SQL
     end
 
     def load_from_s3
+      full_dest_table = "#{@schema.schema}.#{@schema.name}"
       # delete existing rows based on load strategy
       case @load_strategy
       when :update
@@ -130,7 +131,7 @@ SQL
       when :insert_table
         # clear out existing table
         sql = <<SQL
-delete from #{dest_table};
+delete from #{full_dest_table};
 SQL
         @client.execute_dui(sql)
       else
@@ -143,7 +144,7 @@ SQL
         pks = primary_keys
 
         if pks.nil? || pks.empty?
-          raise ETL::SchemaError, "Table '#{dest_table}' does not have a primary key"
+          raise ETL::SchemaError, "Table '#{full_dest_table}' does not have a primary key"
         elsif !pks.is_a?(Array)
           # convert to array
           pks = [pks]
@@ -160,14 +161,14 @@ SQL
 
         if @load_strategy == :upsert
           sql = <<SQL
-          DELETE FROM #{dest_table}
+          DELETE FROM #{full_dest_table}
           USING #{tmp_table} s
-          WHERE #{pks.collect{ |pk| "#{dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
+          WHERE #{pks.collect{ |pk| "#{full_dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
 SQL
           @client.execute_dui(sql)
 
           sql = <<SQL
-          INSERT INTO #{dest_table}
+          INSERT INTO #{full_dest_table}
           SELECT * FROM #{tmp_table}
 SQL
           @client.execute_insert(sql)
@@ -181,10 +182,10 @@ SQL
           end
 
           sql = <<SQL
-  update #{dest_table}
+  update #{full_dest_table}
   set #{update_cols.collect{ |x| "\"#{x}\" = s.#{x}"}.join(", ")}
   from #{tmp_table} s
-  where #{pks.collect{ |pk| "#{dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
+  where #{pks.collect{ |pk| "#{full_dest_table}.#{pk} = s.#{pk}" }.join(" and ")}
 SQL
 
           @client.execute(sql)
