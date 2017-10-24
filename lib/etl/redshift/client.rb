@@ -239,22 +239,25 @@ SQL
 
           # Delete the local file to not fill up that machine.
           ::File.delete(local_file_path)
+ 
+          full_table = "#{table_schema.schema}.#{t}"
 
           copy_from_s3(tmp_table, s3_path)
           where_id_join = ''
           table_schema.primary_key.each do |pk|
             if where_id_join == ''
-              where_id_join = "where #{t}.#{pk} = #{tmp_table}.#{pk}"
+              where_id_join = "where #{full_table}.#{pk} = #{tmp_table}.#{pk}"
             else
-              where_id_join = "#{where_id_join} and #{t}.#{pk} = #{tmp_table}.#{pk}"
+              where_id_join = "#{where_id_join} and #{full_table}.#{pk} = #{tmp_table}.#{pk}"
             end
           end
+
           # Using recommended method to do upsert
           # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
           upsert_data = <<SQL
 begin transaction;
-  delete from #{t} using #{tmp_table} #{where_id_join};
-  insert into #{t} select * from #{tmp_table};
+  delete from #{full_table} using #{tmp_table} #{where_id_join};
+  insert into #{full_table} select * from #{tmp_table};
 end transaction;
 SQL
           execute(upsert_data)
