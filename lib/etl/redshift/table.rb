@@ -2,7 +2,7 @@ module ETL
   module Redshift
     # Represents single data table in redshift
     class Table < ETL::Schema::Table
-      attr_accessor :backup, :dist_key, :sort_keys, :dist_style, :identity_key
+      attr_accessor :schema, :backup, :dist_key, :sort_keys, :dist_style, :identity_key
 
       def initialize(name = '', opts = {})
         super(name, opts)
@@ -11,6 +11,7 @@ module ETL
         @identity_key = {}
         @backup = opts.fetch(:backup, true)
         @dist_style = opts.fetch(:dist_style, '')
+        @schema = 'public'
       end
 
       def set_distkey(column)
@@ -130,6 +131,7 @@ module ETL
           width = c.precision.to_s unless c.precision.nil?
           code += "table.add_column('#{key}', '#{c.type}', #{width}, #{precision})\n"
         end
+        code += "table.schema = '#{schema}'\n"
         code += "table.primary_key = [#{@primary_key.map { |k| "'#{k}'" }.join(',')}]\n" unless @primary_key.empty?
         code += "table.dist_key = '#{@dist_key}'\n" unless @dist_key.empty?
         code += "table.sort_key = [#{@sort_keys.map { |_k| 'k' }.join(',')}]\n" unless @sort_keys.empty?
@@ -140,9 +142,9 @@ module ETL
 
       def create_table_sql
         temp = ''
-        temp = (' TEMPORARY' if @temp)
 
-        sql = "CREATE#{temp} TABLE IF NOT EXISTS #{@name}"
+        sql = "CREATE TABLE IF NOT EXISTS #{@schema}.#{@name}" unless @temp
+        sql = "CREATE TEMPORARY TABLE IF NOT EXISTS #{@name}" if @temp
         sql << " ( LIKE #{@like} )" unless @like.empty?
 
         column_declare_statements = ''
