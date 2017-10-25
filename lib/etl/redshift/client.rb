@@ -232,16 +232,15 @@ SQL
           local_file_path = csv_file_paths[t]
           s3_file_name = File.basename(local_file_path)
           s3_path = "#{@bucket}/#{s3_file_name}"
-          tmp_table = create_staging_table(t)
+
+          tmp_table = create_staging_table(table_schema.schema, t)
           s3_resource = Aws::S3::Resource.new(region: @region)
           s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
           file_uploaded[t] = true
 
           # Delete the local file to not fill up that machine.
           ::File.delete(local_file_path)
- 
           full_table = "#{table_schema.schema}.#{t}"
-
           copy_from_s3(tmp_table, s3_path)
           where_id_join = ''
           table_schema.primary_key.each do |pk|
@@ -269,10 +268,10 @@ SQL
       rows_processed
     end
 
-    def create_staging_table(destination_table)
-      tmp_table_name = destination_table + @random_key
+    def create_staging_table(final_table_schema, final_table_name)
+      tmp_table_name = final_table_name + @random_key
       # create temp table to add data to.
-      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, temp: true, like: destination_table)
+      tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, temp: true, like: "#{final_table_schema}.#{final_table_name}")
       create_table(tmp_table)
       tmp_table_name
     end
