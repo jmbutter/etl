@@ -88,8 +88,10 @@ module ETL::Output
     end
 
     def create_staging_table
+      full_table_name = "#{schema.schema}.#{schema.name}"
+
       # create temp table to add data to.
-      temp_table = ::ETL::Redshift::Table.new(tmp_table, { temp: true, like: dest_table })
+      temp_table = ::ETL::Redshift::Table.new(tmp_table, { temp: true, like: full_table_name })
       @client.create_table(temp_table)
 
       sql =<<SQL
