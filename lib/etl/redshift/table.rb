@@ -168,14 +168,14 @@ module ETL
         # backup is by default on if not specified
         sql << ' BACKUP NO' unless @backup
 
+        sql << " DISTSTYLE #{@dist_style}" unless @dist_style.empty?
+
         sql << " DISTKEY(#{@dist_key})" unless @dist_key.empty?
 
         unless @sort_keys.empty?
           sks = @sort_keys.join(',')
           sql << " SORTKEY(#{sks})"
         end
-
-        sql << " DISTSTYLE #{@dist_style}" unless @dist_style.empty?
         sql
       end
 

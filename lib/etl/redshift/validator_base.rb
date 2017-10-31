@@ -1,5 +1,9 @@
 module ETL::Redshift
-  class ValidatorBase 
-  	def self.validator(client, original_table, tmp_table, table_schema); end
+  class ValidatorBase
+  	def initialize(client)
+  	  @client = client
+  	end
+
+  	def validate(original_table, tmp_table, table_schema); end
   end
 end
