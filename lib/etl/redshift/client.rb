@@ -195,7 +195,7 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, table_schemas_lookup, row_transformer)
+    def upsert_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
       tmp_session = table_schemas_lookup.keys.join('_') + @random_key
 
       # Remove new lines ensures that all row values have newlines removed.
@@ -251,6 +251,7 @@ SQL
             end
           end
 
+          validator.validate(client, t, tmp_table) if validator
           # Using recommended method to do upsert
           # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
           upsert_data = <<SQL
