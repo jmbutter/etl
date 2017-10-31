@@ -251,7 +251,7 @@ SQL
             end
           end
 
-          validator.validate(client, t, tmp_table) if validator
+          validator.validate(t, tmp_table, table_schema) if validator
           # Using recommended method to do upsert
           # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
           upsert_data = <<SQL
