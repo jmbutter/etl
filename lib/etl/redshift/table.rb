@@ -169,14 +169,13 @@ module ETL
         sql << ' BACKUP NO' unless @backup
 
         sql << " DISTSTYLE #{@dist_style}" unless @dist_style.empty?
-        
+
         sql << " DISTKEY(#{@dist_key})" unless @dist_key.empty?
 
         unless @sort_keys.empty?
           sks = @sort_keys.join(',')
           sql << " SORTKEY(#{sks})"
         end
-
         sql
       end
 
