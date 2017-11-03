@@ -34,6 +34,11 @@ RSpec.describe 'redshift' do
       client2.disconnect
     end
 
+    it 'table_exists' do
+      expect(client.table_exists?("pg_catalog", "pg_namespace")).to eq(true)
+      expect(client.table_exists?("pg_catalog", "non_existent_table")).to eq(false)
+    end
+
     it 'get table schema' do
       client.drop_table(table_name)
       sql = <<SQL
