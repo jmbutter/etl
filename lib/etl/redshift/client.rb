@@ -205,8 +205,8 @@ SQL
       add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("append")) 
     end
 
-    # Upserts rows into the destintation tables based on rows
-    # provided by the reader.
+    # adds rows into the destintation tables based on rows
+    # provided by the reader and their add data type.
     def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, add_new_data)
       tmp_session = table_schemas_lookup.keys.join('_') + SecureRandom.hex(5)
 
