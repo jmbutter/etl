@@ -76,6 +76,38 @@ SQL
       expect(rows).to eq([{:column=>"day", :type=>"timestamp without time zone"}])
     end
 
+    it 'append data into one table' do
+      client.drop_table('simple_table_foo')
+      create_table = <<SQL
+  create table simple_table_foo (
+    id integer,
+    col2 varchar(20),
+    PRIMARY KEY(id) );
+SQL
+      client.execute(create_table)
+      data = [
+        { :id => 1, :col2 => 'value2a' },
+      ]
+      input = ETL::Input::Array.new(data)
+      simple_orgs_schema = client.table_schema('simple_table_foo')
+      client.append_rows(input, { 'simple_table_foo' => simple_orgs_schema }, nil)
+      r = client.fetch('Select * from simple_table_foo order by id')
+      values = []
+      r.map{ |v| values << v }
+      expect(values).to eq([{:id=>1, :col2=>"value2a"}])
+
+      data = [
+        { :id => 3, :col2 => 'value2b' },
+      ]
+      input2 = ETL::Input::Array.new(data)
+
+      client.append_rows(input2, { 'simple_table_foo' => simple_orgs_schema }, nil)
+      r = client.fetch('Select * from simple_table_foo order by id')
+      values = []
+      r.map{ |v| values << v }
+      expect(values).to eq([{:id=>1, :col2=>"value2a"}, {:id=>3, :col2=>"value2b"}])
+    end
+
     it 'upsert data into one table' do
       client.drop_table('simple_orgs')
       create_table = <<SQL

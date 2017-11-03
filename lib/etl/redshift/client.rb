@@ -22,8 +22,8 @@ module ETL::Redshift
       @region = aws_params.fetch(:region)
       @bucket = aws_params.fetch(:s3_bucket)
       @iam_role = aws_params.fetch(:role_arn)
-      @random_key = [*('a'..'z'), *('0'..'9')].sample(10).join
       @delimiter = "\u0001"
+
       # note the host is never specified as its part of the dsn name and for now that is hardcoded as 'MyRealRedshift'
       password = conn_params.fetch(:password)
       dsn = conn_params.fetch(:dsn, 'MyRealRedshift')
@@ -196,7 +196,19 @@ SQL
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
     def upsert_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
-      tmp_session = table_schemas_lookup.keys.join('_') + @random_key
+      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("upsert"))
+    end
+
+    # Appends rows into the destintation tables based on rows
+    # provided by the reader.
+    def append_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
+      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("append")) 
+    end
+
+    # adds rows into the destintation tables based on rows
+    # provided by the reader and their add data type.
+    def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, add_new_data)
+      tmp_session = table_schemas_lookup.keys.join('_') + SecureRandom.hex(5)
 
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
@@ -206,12 +218,13 @@ SQL
       csv_files = {}
       csv_file_paths = {}
       file_uploaded = {}
+      rows_processed_map = {}
       table_schemas_lookup.keys.each do |t|
         csv_file_paths[t] = temp_file(t)
         csv_files[t] = ::CSV.open(csv_file_paths[t], 'w', col_sep: @delimiter)
+        rows_processed_map[t] = 0
       end
 
-      rows_processed = 0
       begin
         reader.each_row do |row|
           values_lookup = transform_row(table_schemas_lookup, row_transformers, row)
@@ -222,12 +235,17 @@ SQL
             row_arrays.each do |values_arr|
               csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
               csv_files[table_name].add_row(csv_row)
-              rows_processed += 1
+              rows_processed_map[table_name] += 1
             end
           end
         end
       ensure
         table_schemas_lookup.each_pair do |t, table_schema|
+          if rows_processed_map[t] == 0
+            log.debug("table #{t} has zero rows no upload required")
+            next
+          end
+
           csv_files[t].close
           local_file_path = csv_file_paths[t]
           s3_file_name = File.basename(local_file_path)
@@ -252,21 +270,20 @@ SQL
           end
 
           validator.validate(t, tmp_table, table_schema) if validator
-          # Using recommended method to do upsert
-          # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
-          upsert_data = <<SQL
-begin transaction;
-  delete from #{full_table} using #{tmp_table} #{where_id_join};
-  insert into #{full_table} select * from #{tmp_table};
-end transaction;
-SQL
-          execute(upsert_data)
+          add_sql = add_new_data.build_sql(tmp_table, full_table, { where_id_join: where_id_join })
+          execute(add_sql)
           if file_uploaded[t]
             s3_resource.bucket(@bucket).object(s3_file_name).delete()
           end
         end
       end
-      rows_processed
+      highest_num_rows_processed = 0
+
+      # might need to do something different but doing this for now.
+      rows_processed_map.each_pair do |_key, value|
+        highest_num_rows_processed = value if highest_num_rows_processed < value
+      end
+      highest_num_rows_processed
     end
 
     def table_exists?(schema, table_name)
@@ -276,7 +293,7 @@ SQL
     end
 
     def create_staging_table(final_table_schema, final_table_name)
-      tmp_table_name = final_table_name + @random_key
+      tmp_table_name = final_table_name + SecureRandom.hex(5)
       # create temp table to add data to.
       tmp_table = ::ETL::Redshift::Table.new(tmp_table_name, temp: true, like: "#{final_table_schema}.#{final_table_name}")
       create_table(tmp_table)
@@ -326,6 +343,37 @@ SQL
       values_by_table
     end
   end
+
+  class AddNewData
+    def initialize(add_data_type)
+      @add_data_type = add_data_type
+    end
+
+    def build_sql(tmp_table, destination_table_name, opts)
+      sql = ""
+      if @add_data_type == "append"
+          sql = <<SQL
+begin transaction;
+  insert into #{destination_table_name} select * from #{tmp_table};
+end transaction;
+SQL
+      elsif @add_data_type == "upsert"
+          where_id_join = opts.fetch(:where_id_join)
+          # Using recommended method to do upsert
+          # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
+          sql = <<SQL
+begin transaction;
+  delete from #{destination_table_name} using #{tmp_table} #{where_id_join};
+  insert into #{destination_table_name} select * from #{tmp_table};
+end transaction;
+SQL
+      else
+        raise "Unknown add data type #{@add_data_type}"
+      end
+      sql
+    end
+  end
+
   # class used as sentinel to skip a row.
   class SkipRow
   end
