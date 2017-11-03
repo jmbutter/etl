@@ -108,42 +108,6 @@ SQL
       expect(values).to eq([{:id=>1, :col2=>"value2a"}, {:id=>3, :col2=>"value2b"}])
     end
 
-    it 'upsert data into two tables with splitter' do
-      client.drop_table('simple_orgs_2')
-      client.drop_table('simple_orgs_history')
-      create_table = <<SQL
-  create table simple_orgs_2 (
-    id integer,
-    col2 varchar(20),
-    PRIMARY KEY(id) );
-
-  create table simple_orgs_history (
-    h_id integer,
-    id integer,
-    PRIMARY KEY(h_id) );
-SQL
-      client.execute(create_table)
-      data = [
-        { :h_id => 4, :id => 1, :col2 => 'value2a' },
-        { :h_id => 5, :id => 2, :col2 => 'value2b' },
-        { :h_id => 6, :id => 3, :col2 => 'value2c' }
-      ]
-      input = ETL::Input::Array.new(data)
-      simple_orgs_schema = client.table_schema('simple_orgs_2')
-      simple_orgs_history_schema = client.table_schema('simple_orgs_history')
-      row_splitter = ::ETL::Transform::SplitRow.SplitByTableSchemas([simple_orgs_schema, simple_orgs_history_schema])
-      client.upsert_rows(input, { 'simple_orgs_2' => simple_orgs_schema, 'simple_orgs_history' => simple_orgs_history_schema }, row_splitter)
-      r = client.fetch('Select * from simple_orgs_2 order by id')
-      values = []
-      r.map{ |v| values << v }
-      expect(values).to eq([{:id=>1, :col2=>"value2a"}, {:id=>2, :col2=>"value2b"}, {:id=>3, :col2=>"value2c"}])
-
-      r = client.fetch('Select * from simple_orgs_history order by h_id')
-      values = []
-      r.map{ |v| values << v }
-      expect(values).to eq([{:h_id=>4, :id=>1}, {:h_id=>5, :id=>2}, {:h_id=>6, :id=>3}])
-    end
-
     it 'upsert data into one table' do
       client.drop_table('simple_orgs')
       create_table = <<SQL
