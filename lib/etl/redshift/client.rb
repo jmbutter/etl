@@ -269,6 +269,12 @@ SQL
       rows_processed
     end
 
+    def table_exists?(schema, table_name)
+      sql = "SELECT count(*)  FROM pg_tables where schemaname = '#{schema}' and tablename = '#{table_name}'"
+      result = fetch(sql).first
+      return result[:count] == 1
+    end
+
     def create_staging_table(final_table_schema, final_table_name)
       tmp_table_name = final_table_name + @random_key
       # create temp table to add data to.
