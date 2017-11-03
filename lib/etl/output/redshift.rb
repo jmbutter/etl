@@ -195,7 +195,7 @@ SQL
 
       else
         sql = <<SQL
-        COPY #{@dest_table}
+        COPY #{full_dest_table}
         FROM 's3://#{@bucket}/#{tmp_table}'
         IAM_ROLE '#{@aws_params[:role_arn]}'
         TIMEFORMAT AS 'auto'
