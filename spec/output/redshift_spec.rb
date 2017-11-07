@@ -201,7 +201,7 @@ RSpec.describe "redshift output" do
   def init_conn_table(table_name)
     conn = get_conn()
 
-    conn.drop_table(table_name)
+    conn.drop_table('public', table_name)
     # Create destination table
     sql = <<SQL
 drop table if exists #{table_name};
