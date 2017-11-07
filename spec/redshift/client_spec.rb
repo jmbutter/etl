@@ -40,9 +40,10 @@ RSpec.describe 'redshift' do
     end
 
     it 'get table schema' do
-      client.drop_table('public', table_name)
+      client.execute('DROP SCHEMA IF EXISTS other_schema CASCADE')
+      client.execute('CREATE SCHEMA other_schema')
       sql = <<SQL
-  create table #{table_name} (
+  create table other_schema.#{table_name} (
     day timestamp,
     day2 timestamptz,
     id integer,
@@ -56,10 +57,11 @@ RSpec.describe 'redshift' do
 SQL
       client.execute(sql)
       rows = []
-      schema = client.table_schema('public', table_name)
+      schema = client.table_schema('other_schema', table_name)
 
       expect(schema.columns.keys).to eq(%w[day day2 id test num f1 f2 large_int small_int])
       expect(schema.primary_key).to eq(['id'])
+      expect(schema.schema).to eq('other_schema')
     end
 
     it 'get table columns' do

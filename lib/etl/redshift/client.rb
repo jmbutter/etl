@@ -87,22 +87,21 @@ module ETL::Redshift
       full_name = "#{schema_name}.#{table_name}"
       cached_table = @cached_table_schemas[full_name] if @cache_table_schema_lookup
       return cached_table unless cached_table.nil?
+      execute("set search_path to #{schema_name}")
       information_schema_columns_sql = <<SQL
-select i.column_name, i.table_name, i.ordinal_position, i.is_nullable, i.data_type, i.character_maximum_length, i.numeric_precision, i.numeric_precision_radix, i.numeric_scale, i.udt_name, pg_table_def.distkey, pg_table_def.sortkey
-from information_schema.columns as i left outer join pg_table_def
-      on pg_table_def.tablename = i.table_name and i.column_name = pg_table_def.\"column\"
-WHERE i.table_name = '#{table_name}' and pg_table_def.schemaname = '#{schema_name}'
+select * from pg_table_def
+left Join information_schema.columns as i on i.table_schema = pg_table_def.schemaname and i.table_name = pg_table_def.tablename and i.column_name = pg_table_def."column"
+where tablename = '#{table_name}' and schemaname = '#{schema_name}'
 SQL
       columns_info = []
       fetch(information_schema_columns_sql).each { |v| columns_info << v }
-
       table_constraint_info_sql = <<SQL
-SELECT conkey
+SELECT conkey, pg_namespace.nspname
 FROM pg_constraint
 LEFT JOIN pg_namespace On pg_constraint.connamespace = pg_namespace.OID
+LEFT JOIN pg_class ON pg_constraint.connamespace = pg_class.relnamespace
 WHERE contype = 'p' and conrelid = (
-    SELECT oid FROM pg_class WHERE relname LIKE '#{table_name}')
-and pg_namespace.nspname = '#{schema_name}'
+    SELECT oid FROM pg_class WHERE relname = '#{table_name}' and relnamespace = pg_namespace.OID)
 SQL
       pk_ordinals = []
       values = []
@@ -136,6 +135,7 @@ SELECT * FROM (
 SQL
       fks = fetch(fks_sql).map
       table = ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
+      table.schema = schema_name
       @cached_table_schemas[table.name] = table if @cache_table_schema_lookup
       table
     end

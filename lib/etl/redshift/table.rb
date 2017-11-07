@@ -1,13 +1,32 @@
 module ETL
   module Redshift
+
     # Represents single data table in redshift
     class Table < ETL::Schema::Table
-      attr_accessor :schema, :backup, :dist_key, :sort_keys, :dist_style, :identity_key
+      attr_accessor :schema, :backup, :dist_key, :sort_keys, :encodings, :dist_style, :identity_key
+      def self.compression_lookup
+        {
+          "NONE" => [],
+          "RAW" => ["ALL"],  # no compression
+          "BYTEDICT" => ["ALL" ], # supports all types except bool
+          "DELTA"	=> ["SMALLINT", "INT", "BIGINT", "DATE", "TIMESTAMP", "DECIMAL"],
+          "DELTA32K" => ["INT", "BIGINT", "DATE", "TIMESTAMP", "DECIMAL"],
+          "LZO" => ["SMALLINT", "INTEGER","BIGINT", "DECIMAL", "CHAR", "VARCHAR", "DATE", "TIMESTAMP", "TIMESTAMPTZ"],
+          "MOSTLYN8" => ["SMALLINT", "INT", "BIGINT", "DECIMAL"],
+          "MOSTLYN16" => ["INT", "BIGINT", "DECIMAL"],
+          "MOSTLYN32" => ["BIGINT", "DECIMAL"],
+          "RUNLENGTH" => ["ALL"],
+          "TEXT255" => ["VARCHAR"],
+          "TEXT32K" => ["VARCHAR"],
+          "Zstandard" => ["ALL"]
+        }
+      end
 
       def initialize(name = '', opts = {})
         super(name, opts)
         @dist_key = ''
         @sort_keys = []
+        @encodings = {}
         @identity_key = {}
         @backup = opts.fetch(:backup, true)
         @dist_style = opts.fetch(:dist_style, '')
@@ -20,6 +39,11 @@ module ETL
 
       def add_sortkey(column)
         @sort_keys.push(column)
+      end
+
+      def add_encoding(column, encoding)
+        raise "Encoding #{encoding} unknown" unless self.class.compression_lookup.key?(encoding.upcase)
+        @encodings[column] = encoding.downcase
       end
 
       def set_identity(column, seed = 1, step = 1)
@@ -57,11 +81,12 @@ module ETL
           dist_key = col[:distkey]
           udt_name = col[:udt_name]
           sort_key = col[:sortkey]
+          encoding = col[:encoding]
 
           pks << col_name.to_s if pk_info.include?(ordinal_pos)
           t.set_distkey(col_name) if dist_key
           t.add_sortkey(col_name) if sort_key != '0'
-
+          t.add_encoding(col_name, encoding)
           data_type = 'varchar' if udt_name == 'varchar'
 
           if data_type == 'timestamp without time zone'
@@ -130,6 +155,7 @@ module ETL
           precision = 'nil'
           width = c.precision.to_s unless c.precision.nil?
           code += "table.add_column('#{key}', '#{c.type}', #{width}, #{precision})\n"
+          code += "table.add_encoding('#{key}', '#{@encodings[key]}')\n" if @encodings.key?(key)
         end
         code += "table.schema = '#{schema}'\n"
         code += "table.primary_key = [#{@primary_key.map { |k| "'#{k}'" }.join(',')}]\n" unless @primary_key.empty?
@@ -154,6 +180,7 @@ module ETL
           column_statement = "\"#{name}\" #{column_type}"
           column_statement += " IDENTITY(#{@identity_key[:seed]}, #{@identity_key[:step]})" if !@identity_key.empty? && @identity_key[:column] == name.to_sym
           column_statement += ' NOT NULL' unless column.nullable
+          column_statement += " encode #{@encodings[name]}" if @encodings.key?(name)
           column_statement += " REFERENCES #{column.fk[:table]}(#{column.fk[:column]})" unless column.fk.nil?
           type_ary << column_statement
         end
