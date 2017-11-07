@@ -72,8 +72,8 @@ module ETL::Redshift
       db.execute(sql)
     end
 
-    def drop_table(table_name)
-      sql = "drop table if exists #{table_name};"
+    def drop_table(schema_name, table_name)
+      sql = "DROP TABLE IF EXISTS #{schema_name}.#{table_name};"
       execute_ddl(sql)
     end
 
@@ -82,23 +82,27 @@ module ETL::Redshift
       execute_ddl(sql)
     end
 
-    def table_schema(table_name)
+    def table_schema(schema_name, table_name)
       cached_table = nil
-      cached_table = @cached_table_schemas[table_name] if @cache_table_schema_lookup
+      full_name = "#{schema_name}.#{table_name}"
+      cached_table = @cached_table_schemas[full_name] if @cache_table_schema_lookup
       return cached_table unless cached_table.nil?
       information_schema_columns_sql = <<SQL
 select i.column_name, i.table_name, i.ordinal_position, i.is_nullable, i.data_type, i.character_maximum_length, i.numeric_precision, i.numeric_precision_radix, i.numeric_scale, i.udt_name, pg_table_def.distkey, pg_table_def.sortkey
 from information_schema.columns as i left outer join pg_table_def
-      on pg_table_def.tablename = i.table_name and i.column_name = pg_table_def.\"column\" where i.table_name = '#{table_name}'
+      on pg_table_def.tablename = i.table_name and i.column_name = pg_table_def.\"column\"
+WHERE i.table_name = '#{table_name}' and pg_table_def.schemaname = '#{schema_name}'
 SQL
       columns_info = []
       fetch(information_schema_columns_sql).each { |v| columns_info << v }
 
       table_constraint_info_sql = <<SQL
-      SELECT conkey
-      FROM pg_constraint
-      WHERE contype = 'p' and conrelid = (
-          SELECT oid FROM pg_class WHERE relname LIKE '#{table_name}');
+SELECT conkey
+FROM pg_constraint
+LEFT JOIN pg_namespace On pg_constraint.connamespace = pg_namespace.OID
+WHERE contype = 'p' and conrelid = (
+    SELECT oid FROM pg_class WHERE relname LIKE '#{table_name}')
+and pg_namespace.nspname = '#{schema_name}'
 SQL
       pk_ordinals = []
       values = []
@@ -114,19 +118,21 @@ SQL
       end
 
       fks_sql = <<SQL
-SELECT
-  o.conname AS constraint_name,
-  (SELECT nspname FROM pg_namespace WHERE oid=m.relnamespace) AS source_schema,
-  m.relname AS source_table,
-  (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = m.oid AND a.attnum = o.conkey[1] AND a.attisdropped = false) AS source_column,
-  (SELECT nspname FROM pg_namespace WHERE oid=f.relnamespace) AS target_schema,
-  f.relname AS target_table,
-  (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = f.oid AND a.attnum = o.confkey[1] AND a.attisdropped = false) AS target_column
-FROM
-  pg_constraint o LEFT JOIN pg_class c ON c.oid = o.conrelid
-  LEFT JOIN pg_class f ON f.oid = o.confrelid LEFT JOIN pg_class m ON m.oid = o.conrelid
-WHERE
-  o.contype = 'f' AND m.relname = '#{table_name}' AND o.conrelid IN (SELECT oid FROM pg_class c WHERE c.relkind = 'r');
+SELECT * FROM (
+  SELECT
+    o.conname AS constraint_name,
+    (SELECT nspname FROM pg_namespace WHERE oid=m.relnamespace) AS source_schema,
+    m.relname AS source_table,
+    (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = m.oid AND a.attnum = o.conkey[1] AND a.attisdropped = false) AS source_column,
+    (SELECT nspname FROM pg_namespace WHERE oid=f.relnamespace) AS target_schema,
+    f.relname AS target_table,
+    (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = f.oid AND a.attnum = o.confkey[1] AND a.attisdropped = false) AS target_column
+  FROM
+    pg_constraint o LEFT JOIN pg_class c ON c.oid = o.conrelid
+    LEFT JOIN pg_class f ON f.oid = o.confrelid LEFT JOIN pg_class m ON m.oid = o.conrelid
+  WHERE
+    o.contype = 'f' AND m.relname = '#{table_name}' AND o.conrelid IN (SELECT oid FROM pg_class c WHERE c.relkind = 'r')
+) where source_schema = '#{schema_name}'
 SQL
       fks = fetch(fks_sql).map
       table = ::ETL::Redshift::Table.from_schema(table_name, columns_info, pk_ordinals, fks)
@@ -134,9 +140,9 @@ SQL
       table
     end
 
-    def columns(table_name)
+    def columns(schema_name, table_name)
       sql = <<SQL
-      SELECT "column", type FROM pg_table_def WHERE tablename = '#{table_name}'
+      SELECT "column", type FROM pg_table_def WHERE tablename = '#{table_name}' and schemaname = '#{schema_name}'
 SQL
       fetch(sql)
     end

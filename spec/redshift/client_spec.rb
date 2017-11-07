@@ -11,7 +11,7 @@ RSpec.describe 'redshift' do
     let(:s3_destination) { "#{bucket}/#{table_name}_#{random_key}" }
     it 'connect and create and delete a table' do
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
-      client2.drop_table(table_name)
+      client2.drop_table('public', table_name)
       other_table = ETL::Redshift::Table.new(:other_table)
       other_table.int('id')
       other_table.add_primarykey('id')
@@ -26,11 +26,11 @@ RSpec.describe 'redshift' do
       client2.create_table(other_table)
       client2.create_table(table)
 
-      found_table = client2.table_schema(table_name)
+      found_table = client2.table_schema('public', table_name)
       expect(found_table.fks).to eq(['fk_id'])
       expect(found_table.columns['fk_id'].fk).to eq(column: 'id', table: 'other_table')
-      client2.drop_table(table_name)
-      client2.drop_table('other_table')
+      client2.drop_table('public', table_name)
+      client2.drop_table('public', 'other_table')
       client2.disconnect
     end
 
@@ -40,7 +40,7 @@ RSpec.describe 'redshift' do
     end
 
     it 'get table schema' do
-      client.drop_table(table_name)
+      client.drop_table('public', table_name)
       sql = <<SQL
   create table #{table_name} (
     day timestamp,
@@ -56,28 +56,28 @@ RSpec.describe 'redshift' do
 SQL
       client.execute(sql)
       rows = []
-      schema = client.table_schema(table_name)
+      schema = client.table_schema('public', table_name)
 
       expect(schema.columns.keys).to eq(%w[day day2 id test num f1 f2 large_int small_int])
       expect(schema.primary_key).to eq(['id'])
     end
 
     it 'get table columns' do
-      client.drop_table(table_name)
+      client.drop_table('public', table_name)
       sql = <<SQL
   create table #{table_name} (
     day timestamp);
 SQL
       client.execute(sql)
       rows = []
-      r = client.columns(table_name).each do |r|
+      r = client.columns('public', table_name).each do |r|
         rows << r
       end
       expect(rows).to eq([{:column=>"day", :type=>"timestamp without time zone"}])
     end
 
     it 'append data into one table' do
-      client.drop_table('simple_table_foo')
+      client.drop_table('public', 'simple_table_foo')
       create_table = <<SQL
   create table simple_table_foo (
     id integer,
@@ -89,7 +89,7 @@ SQL
         { :id => 1, :col2 => 'value2a' },
       ]
       input = ETL::Input::Array.new(data)
-      simple_orgs_schema = client.table_schema('simple_table_foo')
+      simple_orgs_schema = client.table_schema('public', 'simple_table_foo')
       client.append_rows(input, { 'simple_table_foo' => simple_orgs_schema }, nil)
       r = client.fetch('Select * from simple_table_foo order by id')
       values = []
@@ -109,7 +109,7 @@ SQL
     end
 
     it 'upsert data into one table' do
-      client.drop_table('simple_orgs')
+      client.drop_table('public', 'simple_orgs')
       create_table = <<SQL
   create table simple_orgs (
     id integer,
@@ -124,7 +124,7 @@ SQL
         { :id => 4, :col2 => "value2c \n aghonce" }, # newline should be removed
       ]
       input = ETL::Input::Array.new(data)
-      simple_orgs_schema = client.table_schema('simple_orgs_2')
+      simple_orgs_schema = client.table_schema('public','simple_orgs_2')
       client.upsert_rows(input, { 'simple_orgs' => simple_orgs_schema }, nil)
       r = client.fetch('Select * from simple_orgs order by id')
       values = []
@@ -133,8 +133,8 @@ SQL
     end
 
     it 'upsert data into two tables with splitter' do
-      client.drop_table('simple_orgs_2')
-      client.drop_table('simple_orgs_history')
+      client.drop_table('public', 'simple_orgs_2')
+      client.drop_table('public', 'simple_orgs_history')
       create_table = <<SQL
   create table simple_orgs_2 (
     id integer,
@@ -153,8 +153,8 @@ SQL
         { :h_id => 6, :id => 3, :col2 => 'value2c' }
       ]
       input = ETL::Input::Array.new(data)
-      simple_orgs_schema = client.table_schema('simple_orgs_2')
-      simple_orgs_history_schema = client.table_schema('simple_orgs_history')
+      simple_orgs_schema = client.table_schema('public', 'simple_orgs_2')
+      simple_orgs_history_schema = client.table_schema('public', 'simple_orgs_history')
       row_splitter = ::ETL::Transform::SplitRow.SplitByTableSchemas([simple_orgs_schema, simple_orgs_history_schema])
       client.upsert_rows(input, { 'simple_orgs_2' => simple_orgs_schema, 'simple_orgs_history' => simple_orgs_history_schema }, row_splitter)
       r = client.fetch('Select * from simple_orgs_2 order by id')
@@ -170,7 +170,7 @@ SQL
 
     it 'move data by unloading and copying' do
       target_table = 'test_target_table_1'
-      client.drop_table(table_name)
+      client.drop_table('public', table_name)
       sql = "create table #{table_name} (day datetime NOT NULL, attribute varchar(100), PRIMARY KEY (day));"
       client.execute(sql)
 
@@ -182,7 +182,7 @@ SQL
 SQL
       client.execute(insert_sql)
 
-      client.drop_table(target_table)
+      client.drop_table('public', target_table)
       sql = "create table #{target_table} (day datetime NOT NULL, attribute varchar(100), PRIMARY KEY (day));"
       client.execute(sql)
 

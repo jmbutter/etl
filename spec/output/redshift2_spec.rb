@@ -39,8 +39,8 @@ RSpec.describe "redshift2" do
   context "Test redshift2 out can upsert data" do
 
     it "Add new rows to tables" do
-      ::Helper.client.drop_table(table1.name)
-      ::Helper.client.drop_table(table2.name)
+      ::Helper.client.drop_table('public', table1.name)
+      ::Helper.client.drop_table('public', table2.name)
       ::Helper.client.create_table(table1)
       ::Helper.client.create_table(table2)
       sleep(5)
@@ -53,8 +53,8 @@ RSpec.describe "redshift2" do
 
       # test output to multiple tables.
       input = ETL::Input::Array.new(data)
-      table1_schema = client.table_schema(table_name)
-      table2_schema = client.table_schema(table_name_2)
+      table1_schema = client.table_schema('public', table_name)
+      table2_schema = client.table_schema('public', table_name_2)
       transformer = ::ETL::Transform::SplitRow.SplitByTableSchemas([table1_schema, table2_schema])
       table_schema_lookup = { table_name => table1_schema, table_name_2 => table2_schema }
 
