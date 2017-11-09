@@ -237,16 +237,16 @@ SQL
           next if values_lookup.is_a? SkipRow
 
           values_lookup.each_pair do |table_name, row_arrays|
-            table_schema = table_schemas_lookup[table_name]
+            tschema = table_schemas_lookup[table_name]
             row_arrays.each do |values_arr|
-              csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
+              csv_row = CSV::Row.new(tschema.columns.keys, values_arr)
               csv_files[table_name].add_row(csv_row)
               rows_processed_map[table_name] += 1
             end
           end
         end
       ensure
-        table_schemas_lookup.each_pair do |t, table_schema|
+        table_schemas_lookup.each_pair do |t, tschema|
           if rows_processed_map[t] == 0
             log.debug("table #{t} has zero rows no upload required")
             next
@@ -257,17 +257,17 @@ SQL
           s3_file_name = File.basename(local_file_path)
           s3_path = "#{@bucket}/#{s3_file_name}"
 
-          tmp_table = create_staging_table(table_schema.schema, t)
+          tmp_table = create_staging_table(tschema.schema, t)
           s3_resource = Aws::S3::Resource.new(region: @region)
           s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
           file_uploaded[t] = true
 
           # Delete the local file to not fill up that machine.
           ::File.delete(local_file_path)
-          full_table = "#{table_schema.schema}.#{t}"
+          full_table = "#{tschema.schema}.#{t}"
           copy_from_s3(tmp_table, s3_path)
           where_id_join = ''
-          table_schema.primary_key.each do |pk|
+          tschema.primary_key.each do |pk|
             if where_id_join == ''
               where_id_join = "where #{full_table}.#{pk} = #{tmp_table}.#{pk}"
             else
@@ -275,7 +275,7 @@ SQL
             end
           end
 
-          validator.validate(t, tmp_table, table_schema) if validator
+          validator.validate(t, tmp_table, tschema) if validator
           add_sql = add_new_data.build_sql(tmp_table, full_table, { where_id_join: where_id_join })
           execute(add_sql)
           if file_uploaded[t]
