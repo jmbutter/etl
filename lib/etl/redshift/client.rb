@@ -214,13 +214,68 @@ SQL
     # adds rows into the destintation tables based on rows
     # provided by the reader and their add data type.
     def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, add_new_data)
-      tmp_session = table_schemas_lookup.keys.join('_') + SecureRandom.hex(5)
-
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
       row_transformers = [remove_new_lines]
       row_transformers << row_transformer unless row_transformer.nil?
+      rows_processed_map = {}
+      csv_file_paths = {}
+      begin
+        processed_rows = build_csv(row_transformers, table_schemas_lookup, reader)
+        csv_file_paths = processed_rows[0]
+        rows_processed_map = processed_rows[1]
 
+        table_schemas_lookup.each_pair do |t, tschema|
+          if rows_processed_map[t] == 0
+            log.debug("table #{t} has zero rows no upload required")
+            next
+          end
+          upload_validate_csv_rows(tschema, add_new_data, csv_file_paths[t], validator)
+        end
+      ensure
+        csv_file_paths.each_pair do |_t, local_file_path|
+          ::File.delete(local_file_path)
+        end
+      end
+
+      highest_num_rows_processed = 0
+
+      # might need to do something different but doing this for now.
+      rows_processed_map.each_pair do |_key, value|
+        highest_num_rows_processed = value if highest_num_rows_processed < value
+      end
+      highest_num_rows_processed
+    end
+
+    def upload_validate_csv_rows(tschema, add_new_data, local_file_path, validator)
+      s3_file_name = File.basename(local_file_path)
+      s3_path = "#{@bucket}/#{s3_file_name}"
+
+      s3_resource = Aws::S3::Resource.new(region: @region)
+      s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
+      file_uploaded = true
+
+      tmp_table = create_staging_table(tschema.schema, tschema.name)
+      full_table = "#{tschema.schema}.#{tschema.name}"
+      copy_from_s3(tmp_table, s3_path)
+      where_id_join = ''
+      tschema.primary_key.each do |pk|
+        if where_id_join == ''
+          where_id_join = "where #{full_table}.#{pk} = #{tmp_table}.#{pk}"
+        else
+          where_id_join = "#{where_id_join} and #{full_table}.#{pk} = #{tmp_table}.#{pk}"
+        end
+      end
+
+      validator.validate(t, tmp_table, tschema) if validator
+      add_sql = add_new_data.build_sql(tmp_table, full_table, { where_id_join: where_id_join })
+      execute(add_sql)
+      if file_uploaded
+        s3_resource.bucket(@bucket).object(s3_file_name).delete()
+      end
+    end
+
+    def build_csv(row_transformers, table_schemas_lookup, rows_reader)
       csv_files = {}
       csv_file_paths = {}
       file_uploaded = {}
@@ -231,65 +286,26 @@ SQL
         rows_processed_map[t] = 0
       end
 
-      begin
-        reader.each_row do |row|
-          values_lookup = transform_row(table_schemas_lookup, row_transformers, row)
-          next if values_lookup.is_a? SkipRow
+      puts "reader: #{rows_reader.inspect}"
+      rows_reader.each_row do |row|
+        values_lookup = transform_row(table_schemas_lookup, row_transformers, row)
+        next if values_lookup.is_a? SkipRow
 
-          values_lookup.each_pair do |table_name, row_arrays|
-            table_schema = table_schemas_lookup[table_name]
-            row_arrays.each do |values_arr|
-              csv_row = CSV::Row.new(table_schema.columns.keys, values_arr)
-              csv_files[table_name].add_row(csv_row)
-              rows_processed_map[table_name] += 1
-            end
-          end
-        end
-      ensure
-        table_schemas_lookup.each_pair do |t, table_schema|
-          if rows_processed_map[t] == 0
-            log.debug("table #{t} has zero rows no upload required")
-            next
-          end
-
-          csv_files[t].close
-          local_file_path = csv_file_paths[t]
-          s3_file_name = File.basename(local_file_path)
-          s3_path = "#{@bucket}/#{s3_file_name}"
-
-          tmp_table = create_staging_table(table_schema.schema, t)
-          s3_resource = Aws::S3::Resource.new(region: @region)
-          s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
-          file_uploaded[t] = true
-
-          # Delete the local file to not fill up that machine.
-          ::File.delete(local_file_path)
-          full_table = "#{table_schema.schema}.#{t}"
-          copy_from_s3(tmp_table, s3_path)
-          where_id_join = ''
-          table_schema.primary_key.each do |pk|
-            if where_id_join == ''
-              where_id_join = "where #{full_table}.#{pk} = #{tmp_table}.#{pk}"
-            else
-              where_id_join = "#{where_id_join} and #{full_table}.#{pk} = #{tmp_table}.#{pk}"
-            end
-          end
-
-          validator.validate(t, tmp_table, table_schema) if validator
-          add_sql = add_new_data.build_sql(tmp_table, full_table, { where_id_join: where_id_join })
-          execute(add_sql)
-          if file_uploaded[t]
-            s3_resource.bucket(@bucket).object(s3_file_name).delete()
+        values_lookup.each_pair do |table_name, row_arrays|
+          tschema = table_schemas_lookup[table_name]
+          row_arrays.each do |values_arr|
+            csv_row = CSV::Row.new(tschema.columns.keys, values_arr)
+            csv_files[table_name].add_row(csv_row)
+            rows_processed_map[table_name] += 1
           end
         end
       end
-      highest_num_rows_processed = 0
 
-      # might need to do something different but doing this for now.
-      rows_processed_map.each_pair do |_key, value|
-        highest_num_rows_processed = value if highest_num_rows_processed < value
+      table_schemas_lookup.each_pair do |t, tschema|
+        csv_files[t].close
       end
-      highest_num_rows_processed
+
+      [csv_file_paths, rows_processed_map]
     end
 
     def table_exists?(schema, table_name)
