@@ -96,20 +96,27 @@ SQL
       columns_info = []
       fetch(information_schema_columns_sql).each { |v| columns_info << v }
       table_constraint_info_sql = <<SQL
-SELECT conkey, pg_namespace.nspname
-FROM pg_constraint
-LEFT JOIN pg_namespace On pg_constraint.connamespace = pg_namespace.OID
-LEFT JOIN pg_class ON pg_constraint.connamespace = pg_class.relnamespace
-WHERE contype = 'p' and conrelid = (
-    SELECT oid FROM pg_class WHERE relname = '#{table_name}' and relnamespace = pg_namespace.OID)
+With constraints as (
+                SELECT
+                  pg_namespace.nspname  AS schema_name,
+                  pg_constraint.conname AS constraint_name,
+                  conkey as primary_key_ordinals
+                FROM pg_constraint
+                  LEFT JOIN pg_namespace ON pg_constraint.connamespace = pg_namespace.OID
+                WHERE pg_constraint.contype = 'p'
+)
+Select * FROM (
+  SELECT *
+  FROM information_schema.table_constraints
+    JOIN constraints
+      ON constraints.schema_name = information_schema.table_constraints.constraint_schema AND
+         information_schema.table_constraints.constraint_name = constraints.constraint_name
+) Where constraint_schema = '#{schema_name}' and table_name = '#{table_name}'
 SQL
       pk_ordinals = []
-      values = []
-      fetch(table_constraint_info_sql).each do |v|
-        values << v
-      end
+      values = fetch(table_constraint_info_sql).all
       if !values.nil? && !values.empty?
-        con_key = values[0].fetch(:conkey)
+        con_key = values[0].fetch(:primary_key_ordinals)
         split_keys = con_key.tr('{}', '').split(',')
         split_keys.each do |v|
           pk_ordinals << v.to_i
