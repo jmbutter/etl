@@ -35,7 +35,7 @@ module ETL::Redshift
       @cache_table_schema_lookup = true
       @cached_table_schemas = {}
       @tmp_dir = conn_params.fetch(:tmp_dir, '/tmp')
-      @stl_load_retries = 500
+      @stl_load_retries = 10
     end
 
     def s3_resource
@@ -48,14 +48,14 @@ module ETL::Redshift
 
     def db
       @db ||= begin
-                Sequel.odbc(@odbc_conn_params)
+                  Sequel.odbc(@odbc_conn_params)
               end
     end
 
     def stl_load_errors(filter_opts)
       s3_file_name = filter_opts.fetch(:s3_filepath)
-      query = 'Select * FROM stl_load_errors'
-      query += " where filename = '#{s3_file_name}'" unless s3_file_name.nil?
+      query = "Select * FROM stl_load_errors"
+      query = query + " where filename = '#{s3_file_name}'" unless s3_file_name.nil?
       db.fetch(query).all
     end
 
@@ -192,8 +192,9 @@ SQL
     end
 
     def copy_from_s3(table_name, s3_path)
-      full_s3_path = "s3://#{s3_path}"
-      sql = <<SQL
+      begin
+        full_s3_path = "s3://#{s3_path}"
+        sql = <<SQL
           COPY #{table_name}
           FROM '#{full_s3_path}'
           IAM_ROLE '#{@iam_role}'
@@ -202,15 +203,16 @@ SQL
           DELIMITER '#{@delimiter}'
           REGION '#{@region}'
 SQL
-      execute(sql)
-    rescue => e
-      if e.to_s.include? 'stl_load_errors'
-        # should only be one error.
-        load_error = stl_load_errors(s3_filepath: full_s3_path).first
-        details = stl_load_error_details(load_error[:query])
-        raise RedshiftSTLLoadError.new(load_error, details)
+        execute(sql)
+      rescue => e
+        if e.to_s.include? "stl_load_errors"
+          # should only be one error.
+          load_error = stl_load_errors({s3_filepath: full_s3_path}).first
+          details = stl_load_error_details(load_error[:query])
+          raise RedshiftSTLLoadError.new(load_error, details)
+        end
+        raise
       end
-      raise
     end
 
     def delete_object_from_s3(bucket, prefix, _session_name)
@@ -224,9 +226,9 @@ SQL
     def temp_file(table_name)
       # creating a daily file path so if the disk gets full its
       # easy to kiil all the days except the current.
-      date_path = DateTime.now.strftime('%Y_%m_%d')
+      date_path = DateTime.now.strftime("%Y_%m_%d")
       dir_path = "#{@tmp_dir}/redshift/#{date_path}"
-      FileUtils.makedirs(dir_path) unless Dir.exist?(dir_path)
+      FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
       temp_file = "#{dir_path}/#{table_name}_#{SecureRandom.hex(5)}"
       FileUtils.touch(temp_file)
       temp_file
@@ -235,13 +237,13 @@ SQL
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
     def upsert_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
-      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new('upsert'))
+      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("upsert"))
     end
 
     # Appends rows into the destintation tables based on rows
     # provided by the reader.
     def append_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
-      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new('append'))
+      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("append")) 
     end
 
     # adds rows into the destintation tables based on rows
@@ -291,18 +293,18 @@ SQL
           full_table = "#{tschema.schema}.#{t}"
           where_id_join = ''
           tschema.primary_key.each do |pk|
-            where_id_join = if where_id_join == ''
-                              "where #{full_table}.#{pk} = #{tmp_table}.#{pk}"
-                            else
-                              "#{where_id_join} and #{full_table}.#{pk} = #{tmp_table}.#{pk}"
-                            end
+            if where_id_join == ''
+              where_id_join = "where #{full_table}.#{pk} = #{tmp_table}.#{pk}"
+            else
+              where_id_join = "#{where_id_join} and #{full_table}.#{pk} = #{tmp_table}.#{pk}"
+            end
           end
 
           validator.validate(t, tmp_table, tschema) if validator
-          add_sql = add_new_data.build_sql(tmp_table, full_table, where_id_join: where_id_join)
+          add_sql = add_new_data.build_sql(tmp_table, full_table, { where_id_join: where_id_join })
           execute(add_sql)
           if file_uploaded[t]
-            s3_resource.bucket(@bucket).object(s3_file_name).delete
+            s3_resource.bucket(@bucket).object(s3_file_name).delete()
           end
         end
       end
@@ -318,9 +320,9 @@ SQL
     def build_error_file(file_prefix)
       # build local error file
       error_file_name = "#{file_prefix}_errors_#{SecureRandom.hex(5)}"
-      date_path = DateTime.now.strftime('%Y_%m_%d')
+      date_path = DateTime.now.strftime("%Y_%m_%d")
       dir_path = "#{@tmp_dir}/redshift/#{date_path}"
-      FileUtils.makedirs(dir_path) unless Dir.exist?(dir_path)
+      FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
       error_file_path = "#{dir_path}/#{error_file_name}"
       s3_file_path = "s3://#{@bucket}/error_lines/#{date_path}/#{error_file_name}"
       FileUtils.touch(error_file_path)
@@ -344,10 +346,11 @@ SQL
             s3_resource.bucket(@bucket).object(s3_file_name).upload_file(current_local_file)
             s3_files << s3_file_name
             copy_from_s3(tmp_table, s3_path)
-            break
+            break;
+
           rescue RedshiftSTLLoadError => e
             stl_load_error_found = true
-            next_local_file = "#{local_file_path}_#{retries}"
+            next_local_file = "#{local_file_path}_#{retries.to_s}"
             files << next_local_file
             found_error_row = self.class.remove_line_at(e.error_row[:line_number], current_local_file, next_local_file)
             ::File.delete(current_local_file)
@@ -366,14 +369,14 @@ SQL
               raise e
             end
           ensure
-            retries += 1
+            retries +=1
           end
         end
       ensure
         ::File.delete(current_local_file)
 
         # delete if no error
-        s3_files.each { |f| s3_resource.bucket(@bucket).object(f).delete } if error_file_path.nil?
+        s3_files.each { |f| s3_resource.bucket(@bucket).object(f).delete() } if error_file_path.nil?
         unless error_file_path.nil?
           s3_resource.bucket(@bucket).object(s3_errors_file_path).upload_file(error_file_path)
           log.warning("There were errors uploading data, the following file in s3 contains the failed rows: #{s3_errors_file_path}")
@@ -386,7 +389,7 @@ SQL
     def table_exists?(schema, table_name)
       sql = "SELECT count(*)  FROM pg_tables where schemaname = '#{schema}' and tablename = '#{table_name}'"
       result = fetch(sql).first
-      result[:count] == 1
+      return result[:count] == 1
     end
 
     def create_staging_table(final_table_schema, final_table_name)
@@ -442,14 +445,14 @@ SQL
 
     def self.remove_line_at(position, input_file, new_file)
       current_line_number = 1
-      line_removed = ''
+      line_removed = ""
       open(input_file, 'r') do |f|
         open(new_file, 'w') do |f2|
           f.each_line do |line|
             if current_line_number == position
               line_removed = line
             else
-              f2.write(line)
+             f2.write(line)
             end
             current_line_number += 1
           end
@@ -465,18 +468,18 @@ SQL
     end
 
     def build_sql(tmp_table, destination_table_name, opts)
-      sql = ''
-      if @add_data_type == 'append'
-        sql = <<SQL
+      sql = ""
+      if @add_data_type == "append"
+          sql = <<SQL
 begin transaction;
   insert into #{destination_table_name} select * from #{tmp_table};
 end transaction;
 SQL
-      elsif @add_data_type == 'upsert'
-        where_id_join = opts.fetch(:where_id_join)
-        # Using recommended method to do upsert
-        # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
-        sql = <<SQL
+      elsif @add_data_type == "upsert"
+          where_id_join = opts.fetch(:where_id_join)
+          # Using recommended method to do upsert
+          # http://docs.aws.amazon.com/redshift/latest/dg/merge-replacing-existing-rows.html
+          sql = <<SQL
 begin transaction;
   delete from #{destination_table_name} using #{tmp_table} #{where_id_join};
   insert into #{destination_table_name} select * from #{tmp_table};
@@ -499,13 +502,12 @@ SQL
       @error_row = error_row
       @detail_rows = detail_rows
     end
-
     def message
       row = {}
       @detail_rows.each do |dr|
         row[dr[:colname].strip] = dr[:value].to_s.strip
       end
-      "STL Load error: Reason: '#{@error_row[:err_reason].strip}', LineNumber: #{@error_row[:line_number]}, Position: #{@error_row[:position]}, Rawline '#{error_row[:raw_line].strip}', \nparsed row: '#{row}'"
+      "STL Load error: Reason: '#{@error_row[:err_reason].strip}', LineNumber: #{@error_row[:line_number]}, Position: #{@error_row[:position]}, Rawline '#{error_row[:raw_line].strip}', \nparsed row: '#{row.to_s}'"
     end
   end
 end
