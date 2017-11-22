@@ -6,6 +6,7 @@ require 'odbc'
 require 'mixins/cached_logger'
 require 'pathname'
 require 'fileutils'
+require_relative 'stl_load_error'
 
 module ETL::Redshift
   # when the odbc driver is setup in chef this is the driver's name
@@ -14,7 +15,7 @@ module ETL::Redshift
   # Class that contains shared logic for accessing Redshift.
   class Client
     include ETL::CachedLogger
-    attr_accessor :db, :region, :iam_role, :bucket, :delimiter, :row_columns_symbolized, :cache_table_schema_lookup, :tmp_dir
+    attr_accessor :db, :region, :iam_role, :bucket, :delimiter, :row_columns_symbolized, :cache_table_schema_lookup, :tmp_dir, :stl_load_retries
 
     # when odbc driver is fully working the use redshift driver can
     # default to true
@@ -35,6 +36,11 @@ module ETL::Redshift
       @cache_table_schema_lookup = true
       @cached_table_schemas = {}
       @tmp_dir = conn_params.fetch(:tmp_dir, '/tmp')
+      @stl_load_retries = 10
+    end
+
+    def s3_resource
+      s3_resource = Aws::S3::Resource.new(region: @region)
     end
 
     def disconnect
@@ -45,6 +51,18 @@ module ETL::Redshift
       @db ||= begin
                   Sequel.odbc(@odbc_conn_params)
               end
+    end
+
+    def stl_load_errors(filter_opts)
+      s3_file_name = filter_opts.fetch(:s3_filepath)
+      query = "Select * FROM stl_load_errors"
+      query = query + " where filename = '#{s3_file_name}'" unless s3_file_name.nil?
+      db.fetch(query).all
+    end
+
+    def stl_load_error_details(query_id)
+      query = "Select * FROM STL_LOADERROR_DETAIL where query = '#{query_id}'"
+      db.fetch(query).all
     end
 
     def execute_ddl(sql)
@@ -174,17 +192,28 @@ SQL
       execute(sql)
     end
 
-    def copy_from_s3(table_name, destination)
-      sql = <<SQL
-        COPY #{table_name}
-        FROM 's3://#{destination}'
-        IAM_ROLE '#{@iam_role}'
-        TIMEFORMAT AS 'auto'
-        DATEFORMAT AS 'auto'
-        DELIMITER '#{@delimiter}'
-        REGION '#{@region}'
+    def copy_from_s3(table_name, s3_path)
+      begin
+        full_s3_path = "s3://#{s3_path}"
+        sql = <<SQL
+          COPY #{table_name}
+          FROM '#{full_s3_path}'
+          IAM_ROLE '#{@iam_role}'
+          TIMEFORMAT AS 'auto'
+          DATEFORMAT AS 'auto'
+          DELIMITER '#{@delimiter}'
+          REGION '#{@region}'
 SQL
-      execute(sql)
+        execute(sql)
+      rescue => e
+        if e.to_s.include? "stl_load_errors"
+          # should only be one error.
+          load_error = stl_load_errors({s3_filepath: full_s3_path}).first
+          details = stl_load_error_details(load_error[:query])
+          raise RedshiftSTLLoadError.new(load_error, details)
+        end
+        raise
+      end
     end
 
     def delete_object_from_s3(bucket, prefix, _session_name)
@@ -221,8 +250,6 @@ SQL
     # adds rows into the destintation tables based on rows
     # provided by the reader and their add data type.
     def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, add_new_data)
-      tmp_session = table_schemas_lookup.keys.join('_') + SecureRandom.hex(5)
-
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
       row_transformers = [remove_new_lines]
@@ -261,18 +288,10 @@ SQL
 
           csv_files[t].close
           local_file_path = csv_file_paths[t]
-          s3_file_name = File.basename(local_file_path)
-          s3_path = "#{@bucket}/#{s3_file_name}"
-
           tmp_table = create_staging_table(tschema.schema, t)
-          s3_resource = Aws::S3::Resource.new(region: @region)
-          s3_resource.bucket(@bucket).object(s3_file_name).upload_file(local_file_path)
-          file_uploaded[t] = true
+          copy_from_s3_with_retries(tmp_table, local_file_path)
 
-          # Delete the local file to not fill up that machine.
-          ::File.delete(local_file_path)
           full_table = "#{tschema.schema}.#{t}"
-          copy_from_s3(tmp_table, s3_path)
           where_id_join = ''
           tschema.primary_key.each do |pk|
             if where_id_join == ''
@@ -297,6 +316,75 @@ SQL
         highest_num_rows_processed = value if highest_num_rows_processed < value
       end
       highest_num_rows_processed
+    end
+
+    def build_error_file(file_prefix)
+      # build local error file
+      error_file_name = "#{file_prefix}_errors_#{SecureRandom.hex(5)}"
+      date_path = DateTime.now.strftime("%Y_%m_%d")
+      dir_path = "#{@tmp_dir}/redshift/#{date_path}"
+      FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
+      error_file_path = "#{dir_path}/#{error_file_name}"
+      s3_file_path = "s3://#{@bucket}/error_lines/#{date_path}/#{error_file_name}"
+      FileUtils.touch(error_file_path)
+      [error_file_name, s3_file_path]
+    end
+
+    def copy_from_s3_with_retries(tmp_table, local_file_path)
+      error_file_path = nil
+      s3_errors_file_path = nil
+      stl_load_error_found = false
+      retries = 0
+      current_local_file = local_file_path
+      files = [local_file_path]
+      s3_files = []
+      begin
+        loop do
+          stl_load_error_found = false
+          begin
+            s3_file_name = File.basename(current_local_file)
+            s3_path = "#{@bucket}/#{s3_file_name}"
+            s3_resource.bucket(@bucket).object(s3_file_name).upload_file(current_local_file)
+            s3_files << s3_file_name
+            copy_from_s3(tmp_table, s3_path)
+            break;
+
+          rescue RedshiftSTLLoadError => e
+            stl_load_error_found = true
+            next_local_file = "#{local_file_path}_#{retries.to_s}"
+            files << next_local_file
+            found_error_row = self.class.remove_line_at(e.error_row[:line_number], current_local_file, next_local_file)
+            ::File.delete(current_local_file)
+            current_local_file = next_local_file
+
+            # re-upload with removed line
+            paths = build_error_file(tmp_table) if error_file_path.nil?
+            error_file_path = paths[0] if error_file_path.nil?
+            s3_errors_file_path = paths[1] if s3_errors_file_path.nil?
+            open(error_file_path, 'a') do |f|
+              f << found_error_row
+            end
+            if retries >= @stl_load_retries
+              e.local_error_file = error_file_path unless error_file_path.nil?
+              e.error_s3_file = s3_errors_file_path unless s3_errors_file_path.nil?
+              raise e
+            end
+          ensure
+            retries +=1
+          end
+        end
+      ensure
+        ::File.delete(current_local_file)
+
+        # delete if no error
+        s3_files.each { |f| s3_resource.bucket(@bucket).object(f).delete() } if error_file_path.nil?
+        unless error_file_path.nil?
+          s3_resource.bucket(@bucket).object(s3_errors_file_path).upload_file(error_file_path)
+          log.warning("There were errors uploading data, the following file in s3 contains the failed rows: #{s3_errors_file_path}")
+        end
+      end
+
+      [error_file_path, s3_errors_file_path]
     end
 
     def table_exists?(schema, table_name)
@@ -355,6 +443,24 @@ SQL
 
       values_by_table
     end
+
+    def self.remove_line_at(position, input_file, new_file)
+      current_line_number = 1
+      line_removed = ""
+      open(input_file, 'r') do |f|
+        open(new_file, 'w') do |f2|
+          f.each_line do |line|
+            if current_line_number == position
+              line_removed = line
+            else
+             f2.write(line)
+            end
+            current_line_number += 1
+          end
+        end
+      end
+      line_removed
+    end
   end
 
   class AddNewData
@@ -390,4 +496,5 @@ SQL
   # class used as sentinel to skip a row.
   class SkipRow
   end
+
 end
