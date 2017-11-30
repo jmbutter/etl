@@ -2,6 +2,15 @@ require_relative '../slack/notifier'
 require 'socket'
 
 module ETL::Job
+  # Class that indicates a retry should occur
+  class RetryError < StandardError
+    attr_accessor :inner_error
+    def initialize(msg="A Retry error has occured", inner_error)
+      super
+      @inner_error = inner_error
+    end
+  end
+
   # Class that runs jobs given a payload
   class Exec
     # Initialize with payload we received from the queue
@@ -52,6 +61,26 @@ module ETL::Job
         end
 
         measurements[:rows_processed] = result.rows_processed
+
+      rescue RetryError => ex
+        # By default we want to retry database errors...
+        do_retry = true
+
+        # Retry this job with exponential backoff
+        retries += 1
+        do_retry &&= (retries <= @params[:retry_max])
+        if do_retry
+          log.warn("RetryError '#{ex.message}' inner_error '#{ex.inner_error.message}' on attempt " +
+            "#{retries}/#{@params[:retry_max]}; waiting for #{retry_wait} seconds " +
+            "before retrying")
+          sleep(retry_wait)
+          retry_wait *= @params[:retry_mult]
+          retry
+        end
+
+        # we aren't retrying anymore - log this error
+        jr.exception(ex)
+        notifier.add_field_to_attachments({ "title" => "Error message", "value" => ETL::Logger.create_exception_message(ex)}) unless notifier.nil?
 
       rescue Sequel::DatabaseError => ex
         # By default we want to retry database errors...
