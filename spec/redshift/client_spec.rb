@@ -297,6 +297,5 @@ SQL
       ::File.delete(csv_file_name)
       ::File.delete("#{csv_file_name}_1")
     end
-
   end
 end
