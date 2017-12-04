@@ -6,6 +6,7 @@ require 'odbc'
 require 'mixins/cached_logger'
 require 'pathname'
 require 'fileutils'
+require 'connection_pool'
 require_relative 'stl_load_error'
 
 module ETL::Redshift
@@ -47,10 +48,23 @@ module ETL::Redshift
       @db.disconnect unless @db.nil?
     end
 
+=begin
     def db
       @db ||= begin
                   Sequel.odbc(@odbc_conn_params)
               end
+    end
+=end
+
+    def db
+      #@db ||= ConnectionPool.new(size: 5, timeout: 5) { Sequel.odbc(@odbc_conn_params) }
+      @db ||= ConnectionPool::Wrapper.new(size: 5, timeout: 3) { Sequel.odbc(@odbc_conn_params) }
+    end
+
+    def tmp
+      db.with do |conn|
+        puts "some-count #{conn}"
+      end
     end
 
     def stl_load_errors(filter_opts)
@@ -62,32 +76,32 @@ module ETL::Redshift
 
     def stl_load_error_details(query_id)
       query = "Select * FROM STL_LOADERROR_DETAIL where query = '#{query_id}'"
-      db.fetch(query).all
+      db.with { |conn| conn.fetch(query).all }
     end
 
     def execute_ddl(sql)
       log.debug("execute_ddl SQL: '#{sql}'")
-      db.execute_ddl(sql)
+      db.with { |conn| conn.execute_ddl(sql) }
     end
 
     def execute_dui(sql)
       log.debug("execute_dui SQL: '#{sql}'")
-      db.execute_dui(sql)
+      db.with { |conn| conn.execute_dui(sql) }
     end
 
     def execute_insert(sql)
       log.debug("execute insert: SQL: '#{sql}'")
-      db.execute_insert(sql)
+      db.with { |conn| conn.execute_insert(sql) }
     end
 
     def fetch(sql)
       log.debug("fetch SQL: '#{sql}'")
-      db.fetch(sql)
+      db.with { |conn| conn.fetch(sql) }
     end
 
     def execute(sql)
       log.debug("execute SQL: '#{sql}'")
-      db.execute(sql)
+      db.with { |conn| conn.execute(sql) }
     end
 
     def drop_table(schema_name, table_name)
