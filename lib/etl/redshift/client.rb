@@ -38,6 +38,8 @@ module ETL::Redshift
       @cached_table_schemas = {}
       @tmp_dir = conn_params.fetch(:tmp_dir, '/tmp')
       @stl_load_retries = 10
+      @connection_size = ENV.fetch("CONNECTION_POOL_SIZE", 1).to_i
+      @connection_timeout = ENV.fetch("CONNECTION_POOL_TIMEOUT", 5).to_i
     end
 
     def s3_resource
@@ -45,33 +47,18 @@ module ETL::Redshift
     end
 
     def disconnect
-      @db.disconnect unless @db.nil?
+      db.shutdown { |conn| conn.disconnect }
     end
-
-=begin
-    def db
-      @db ||= begin
-                  Sequel.odbc(@odbc_conn_params)
-              end
-    end
-=end
 
     def db
-      #@db ||= ConnectionPool.new(size: 5, timeout: 5) { Sequel.odbc(@odbc_conn_params) }
-      @db ||= ConnectionPool::Wrapper.new(size: 5, timeout: 3) { Sequel.odbc(@odbc_conn_params) }
-    end
-
-    def tmp
-      db.with do |conn|
-        puts "some-count #{conn}"
-      end
+      @db ||= ConnectionPool.new(size: @connection_size, timeout: @connection_timeout) { Sequel.odbc(@odbc_conn_params) }
     end
 
     def stl_load_errors(filter_opts)
       s3_file_name = filter_opts.fetch(:s3_filepath)
       query = "Select * FROM stl_load_errors"
       query = query + " where filename = '#{s3_file_name}'" unless s3_file_name.nil?
-      db.fetch(query).all
+      db.with { |conn| conn.fetch(query) }
     end
 
     def stl_load_error_details(query_id)
