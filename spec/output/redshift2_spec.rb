@@ -58,7 +58,7 @@ RSpec.describe "redshift2" do
       transformer = ::ETL::Transform::SplitRow.SplitByTableSchemas([table1_schema, table2_schema])
       table_schema_lookup = { table_name => table1_schema, table_name_2 => table2_schema }
 
-      output = ::ETL::Output::Redshift2.new(client, table_schema_lookup, transformer)
+      output = ::ETL::Output::Redshift2.new(client, table_schema_lookup, transformer, nil, [])
       output.reader = input
       result = output.run
 
@@ -77,7 +77,7 @@ RSpec.describe "redshift2" do
       ]
 
       # test when there is only one table used.
-      output = ::ETL::Output::Redshift2.new(client, { table_name => table1_schema}, nil)
+      output = ::ETL::Output::Redshift2.new(client, { table_name => table1_schema}, nil, nil, [])
       input = ETL::Input::Array.new(single_table_data)
       output.reader = input
       result = output.run

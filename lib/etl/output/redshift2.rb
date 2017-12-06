@@ -7,7 +7,7 @@ module ETL::Output
     include ETL::CachedLogger
     attr_reader :table_schema_lookup
 
-    def initialize(client, table_schemas_lookup, transformer, validator = nil, copy_options = [])
+    def initialize(client, table_schemas_lookup, transformer, validator, copy_options)
       super()
       @client = client
       @transformer = transformer
