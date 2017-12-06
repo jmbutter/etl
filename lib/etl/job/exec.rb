@@ -5,7 +5,7 @@ module ETL::Job
   # Class that indicates a retry should occur
   class RetryError < StandardError
     attr_accessor :inner_error
-    def initialize(msg="A Retry error has occured", inner_error)
+    def initialize(inner_error, msg="A Retry error has occured")
       super(msg)
       @inner_error = inner_error
     end
