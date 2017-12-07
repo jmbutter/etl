@@ -189,7 +189,7 @@ SQL
       client.execute(sql)
 
       client.unload_to_s3("select * from #{table_name}", s3_destination)
-      client.copy_from_s3(target_table, s3_destination)
+      client.copy_from_s3(target_table, s3_destination, [])
       expect(client.count_row_by_s3(s3_destination)).to eq(3)
 
       sql = "select count(*) from #{target_table}"
@@ -222,7 +222,7 @@ SQL
         csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '2']))
         csv_file.close
 
-        error = client.copy_from_s3_with_retries("test_s3_copy", csv_file_path)
+        error = client.copy_from_s3_with_retries("test_s3_copy", csv_file_path, [])
         sleep(3)
 
         expect(error[0]).to eq(nil)
@@ -245,7 +245,7 @@ SQL
         csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '5']))
         csv_file.close
 
-        error = client2.copy_from_s3_with_retries("test_s3_copy", csv_file_name)
+        error = client2.copy_from_s3_with_retries("test_s3_copy", csv_file_name, [])
         expect(error[0]).to include("test_s3_copy_errors")
         expect(error[1]).to include("s3://ss-uw1-stg.redshift-testing/error_lines/")
 
@@ -267,7 +267,7 @@ SQL
 
         found_error = nil
         begin
-          client2.copy_from_s3_with_retries("test_s3_copy", csv_file_name)
+          client2.copy_from_s3_with_retries("test_s3_copy", csv_file_name, [])
         rescue => e
           found_error = e
         end

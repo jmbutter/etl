@@ -193,9 +193,10 @@ SQL
       execute(sql)
     end
 
-    def copy_from_s3(table_name, s3_path)
+    def copy_from_s3(table_name, s3_path, options=[])
       begin
         full_s3_path = "s3://#{s3_path}"
+        additional_options = options.join("\n") 
         sql = <<SQL
           COPY #{table_name}
           FROM '#{full_s3_path}'
@@ -204,6 +205,8 @@ SQL
           DATEFORMAT AS 'auto'
           DELIMITER '#{@delimiter}'
           REGION '#{@region}'
+          ACCEPTINVCHARS
+          #{additional_options}
 SQL
         execute(sql)
       rescue => e
@@ -238,19 +241,19 @@ SQL
 
     # Upserts rows into the destintation tables based on rows
     # provided by the reader.
-    def upsert_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
-      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("upsert"))
+    def upsert_rows(reader, table_schemas_lookup, row_transformer, validator = nil, copy_options = [])
+      add_rows(reader, table_schemas_lookup, row_transformer, validator,  copy_options, AddNewData.new("upsert"))
     end
 
     # Appends rows into the destintation tables based on rows
     # provided by the reader.
-    def append_rows(reader, table_schemas_lookup, row_transformer, validator = nil)
-      add_rows(reader, table_schemas_lookup, row_transformer, validator,  AddNewData.new("append")) 
+    def append_rows(reader, table_schemas_lookup, row_transformer, validator = nil, copy_options = [])
+      add_rows(reader, table_schemas_lookup, row_transformer, validator,  copy_options, AddNewData.new("append")) 
     end
 
     # adds rows into the destintation tables based on rows
     # provided by the reader and their add data type.
-    def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, add_new_data)
+    def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, copy_options, add_new_data)
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
       row_transformers = [remove_new_lines]
@@ -290,7 +293,7 @@ SQL
           csv_files[t].close
           local_file_path = csv_file_paths[t]
           tmp_table = create_staging_table(tschema.schema, t)
-          copy_from_s3_with_retries(tmp_table, local_file_path)
+          copy_from_s3_with_retries(tmp_table, local_file_path, copy_options)
 
           full_table = "#{tschema.schema}.#{t}"
           where_id_join = ''
@@ -331,7 +334,7 @@ SQL
       [error_file_name, s3_file_path]
     end
 
-    def copy_from_s3_with_retries(tmp_table, local_file_path)
+    def copy_from_s3_with_retries(tmp_table, local_file_path, options)
       error_file_path = nil
       s3_errors_file_path = nil
       stl_load_error_found = false
@@ -347,7 +350,7 @@ SQL
             s3_path = "#{@bucket}/#{s3_file_name}"
             s3_resource.bucket(@bucket).object(s3_file_name).upload_file(current_local_file)
             s3_files << s3_file_name
-            copy_from_s3(tmp_table, s3_path)
+            copy_from_s3(tmp_table, s3_path, options)
             break;
 
           rescue RedshiftSTLLoadError => e
