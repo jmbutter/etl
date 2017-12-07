@@ -293,7 +293,7 @@ SQL
           csv_files[t].close
           local_file_path = csv_file_paths[t]
           tmp_table = create_staging_table(tschema.schema, t)
-          copy_from_s3_with_retries(tmp_table, local_file_path)
+          copy_from_s3_with_retries(tmp_table, local_file_path, copy_options)
 
           full_table = "#{tschema.schema}.#{t}"
           where_id_join = ''
@@ -334,7 +334,7 @@ SQL
       [error_file_name, s3_file_path]
     end
 
-    def copy_from_s3_with_retries(tmp_table, local_file_path)
+    def copy_from_s3_with_retries(tmp_table, local_file_path, options)
       error_file_path = nil
       s3_errors_file_path = nil
       stl_load_error_found = false
@@ -350,7 +350,7 @@ SQL
             s3_path = "#{@bucket}/#{s3_file_name}"
             s3_resource.bucket(@bucket).object(s3_file_name).upload_file(current_local_file)
             s3_files << s3_file_name
-            copy_from_s3(tmp_table, s3_path)
+            copy_from_s3(tmp_table, s3_path, options)
             break;
 
           rescue RedshiftSTLLoadError => e
