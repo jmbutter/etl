@@ -50,12 +50,34 @@ module ETL::Redshift
       s3_resource = Aws::S3::Resource.new(region: @region)
     end
 
-    def disconnect
-      db.disconnect
+    def disconnect(force = false)
+      unless is_cache
+        db.disconnect
+        return        
+      end
+
+      if force
+        db.disconnect
+        self.class.cached_client = nil
+      end
     end
 
+    # def db
+    #   @db ||= Sequel.odbc(@odbc_conn_params)
+    # end
+
     def db
-      @db ||= Sequel.odbc(@odbc_conn_params)
+      @db ||= if is_cache
+                cached_client
+              else
+                Sequel.odbc(@odbc_conn_params)
+              end
+    end
+
+    def cached_client
+      return self.class.cached_client unless self.class.cached_client.nil?
+      self.class.cached_client = Sequel.odbc(@odbc_conn_params)
+      self.class.cached_client 
     end
 
     def stl_load_errors(filter_opts)
