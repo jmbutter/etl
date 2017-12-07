@@ -33,6 +33,9 @@ RSpec.describe "migratablejob" do
     s = <<-END
   module Migration
     class Job0001
+      def initialize(client)
+      end
+
       def up
         puts "test output up at version 1"
       end
@@ -50,6 +53,9 @@ END
     s = <<-END
   module Migration
     class Job0002
+      def initialize(client)
+      end
+      
       def up
         puts "test output up at version 2"
       end
