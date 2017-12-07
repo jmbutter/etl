@@ -39,11 +39,7 @@ module ETL::Job
       end
     end
 
-    def migration_client
-      @client ||= ETL::Redshift::Client.new(ETL.config.redshift[:etl], ETL.config.aws[:etl])
-    end
-
-    def migrate
+    def migrate(client)
       # execute migration
       return if deploy_version == target_version
       # To-do: execute 'down' when the target version is smaller than deploy version
@@ -67,7 +63,7 @@ module ETL::Job
         file = "#{id}_#{version}"
         load "#{migration_dir}/#{file}.rb"
         clazz = "Migration::#{ETL::StringUtil::snake_to_camel(file)}".split('::').inject(Object) {|o,c| o.const_get c}
-        m = clazz.new(migration_client)
+        m = clazz.new(client)
         if move == 1
           m.up
         else
