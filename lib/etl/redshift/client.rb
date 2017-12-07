@@ -58,37 +58,37 @@ module ETL::Redshift
       s3_file_name = filter_opts.fetch(:s3_filepath)
       query = "Select * FROM stl_load_errors"
       query = query + " where filename = '#{s3_file_name}'" unless s3_file_name.nil?
-      db.with { |conn| conn.fetch(query).all }
+      db.fetch(query).all
     end
 
     def stl_load_error_details(query_id)
       query = "Select * FROM STL_LOADERROR_DETAIL where query = '#{query_id}'"
-      db.with { |conn| conn.fetch(query).all }
+      db.fetch(query).all
     end
 
     def execute_ddl(sql)
       log.debug("execute_ddl SQL: '#{sql}'")
-      db.with { |conn| conn.execute_ddl(sql) }
+      db.execute_ddl(sql)
     end
 
     def execute_dui(sql)
       log.debug("execute_dui SQL: '#{sql}'")
-      db.with { |conn| conn.execute_dui(sql) }
+      db.execute_dui(sql)
     end
 
     def execute_insert(sql)
       log.debug("execute insert: SQL: '#{sql}'")
-      db.with { |conn| conn.execute_insert(sql) }
+      db.execute_insert(sql)
     end
 
     def fetch(sql)
       log.debug("fetch SQL: '#{sql}'")
-      db.with { |conn| conn.fetch(sql) }
+      db.fetch(sql)
     end
 
     def execute(sql)
       log.debug("execute SQL: '#{sql}'")
-      db.with { |conn| conn.execute(sql) }
+      db.execute(sql)
     end
 
     def drop_table(schema_name, table_name)
