@@ -76,7 +76,8 @@ module ETL::Job
     end
 
     def run
-      migrate
+      # Call with your client
+      migrate("client")
       super
     end
   end
