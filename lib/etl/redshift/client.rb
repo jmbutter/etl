@@ -18,9 +18,13 @@ module ETL::Redshift
     include ETL::CachedLogger
     attr_accessor :db, :region, :iam_role, :bucket, :delimiter, :row_columns_symbolized, :cache_table_schema_lookup, :tmp_dir, :stl_load_retries
 
+    class << self
+      attr_accessor :cached_client
+    end
+
     # when odbc driver is fully working the use redshift driver can
     # default to true
-    def initialize(conn_params = {}, aws_params = {})
+    def initialize(conn_params = {}, aws_params = {}, is_cache = true)
       @region = aws_params.fetch(:region)
       @bucket = aws_params.fetch(:s3_bucket)
       @iam_role = aws_params.fetch(:role_arn)
