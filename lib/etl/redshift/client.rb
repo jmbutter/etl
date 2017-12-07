@@ -47,11 +47,11 @@ module ETL::Redshift
     end
 
     def disconnect
-      db.shutdown { |conn| conn.disconnect }
+      db.disconnect
     end
 
     def db
-      @db ||= ConnectionPool.new(size: @connection_size, timeout: @connection_timeout) { Sequel.odbc(@odbc_conn_params) }
+      @db ||= Sequel.odbc(@odbc_conn_params)
     end
 
     def stl_load_errors(filter_opts)
