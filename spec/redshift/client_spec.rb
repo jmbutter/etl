@@ -298,7 +298,29 @@ SQL
         ::File.delete(e.local_error_file)
       end
 
-      it "Fails when non-stl error occurs" do
+      it '#copy_multiple_files_from_s3_with_retries' do
+        create_table(client)
+
+        csv_file_path = "valid_csv_#{SecureRandom.hex(5)}"
+        csv_file = ::CSV.open(csv_file_path, 'w', col_sep: client.delimiter)
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '1']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [2, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [3, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [4, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [5, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [6, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [7, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [8, '2']))
+        csv_file.add_row(CSV::Row.new(["id", "col2"], [9, '2']))
+        csv_file.close
+
+        error = client.copy_multiple_files_from_s3_with_retries("test_s3_copy", csv_file_path, [])
+        sleep(3)
+
+        expect(error[0]).to eq(nil)
+        result = client.fetch("select count(*) from test_s3_copy").all
+
+        expect(result[0][:count]).to eq(9)
       end
     end
 
@@ -326,9 +348,8 @@ SQL
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
       create_test_table(client2)
       client2.delimiter = '|'
-      client2.upload_multiple_files_to_s3("client_test.txt")
-
-      client2.copy_multiple_files_from_s3('client_test', "client_test")
+      client2.upload_multiple_files_to_s3("client_test.csv")
+      client2.copy_from_s3('client_test', "ss-uw1-stg.redshift-testing/client_test")
 
       result = client2.fetch("select count(*) from client_test").all
       expect(result[0][:count]).to eq(20)
