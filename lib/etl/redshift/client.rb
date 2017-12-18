@@ -40,76 +40,7 @@ module ETL::Redshift
       @stl_load_retries = 10
     end
 
-    def upload_multiple_files_to_s3(current_local_file_path, thread_count = 5)
-      file_number = 0
-      mutex       = Mutex.new
-      threads     = []
-
-      files = file_chunker(current_local_file_path)
-      s3_files = []
-      s3_path = ""
-
-      thread_count.times do |i|
-        threads[i] = Thread.new do
-          until files.empty?
-            mutex.synchronize do
-              file_number += 1
-              Thread.current['file_number'] = file_number
-            end
-            file = begin
-                     files.pop
-                   rescue
-                     nil
-                   end
-            next unless file
-
-            log.debug("[#{Thread.current['file_number']}/#{file}] uploading...")
-
-            s3_file_name = File.basename(file)
-
-            s3_resource.bucket(@bucket).object(s3_file_name).upload_file(file)
-            s3_path = "#{@bucket}/#{s3_file_name}"
-            s3_files << s3_path
-          end
-        end
-      end
-      threads.each(&:join)
-      s3_prefix = s3_path.split('_')[0...-1].join("_")
-      [s3_prefix, s3_files]
-    end
-
-    def file_chunker(file, file_number = 5)
-      prefix = file.split('.').first
-      line_count = `wc -l "#{file}"`.strip.split(' ')[0].to_i
-      max_line = line_count / file_number
-      outfilenum = 1
-      files = []
-      file_path = File.dirname(file)
-
-      File.open(file, 'r') do |fh_in|
-        until fh_in.eof?
-          f_path = "#{file_path}/#{prefix}_#{outfilenum}.csv"
-          File.open(f_path, 'w') do |fh_out|
-            count = 0
-            line = ''
-            while (count <= max_line || outfilenum == file_number) && !fh_in.eof?
-              line = fh_in.readline
-              fh_out << line
-              count += 1
-            end
-            files << f_path
-          end
-          outfilenum += 1
-        end
-      end
-      files
-    end
-
-    def remove_chunked_files(file)
-      prefix = file.split('.').first
-      file_path = File.dirname(file)
-      system( "rm #{file_path}/#{prefix}_*.csv ")
-    end
+    
 
     def s3_resource
       s3_resource = Aws::S3::Resource.new(region: @region)
@@ -512,6 +443,77 @@ SQL
       end
 
       [error_file_path, s3_errors_file_path]
+    end
+
+    def upload_multiple_files_to_s3(current_local_file_path, thread_count = 5)
+      file_number = 0
+      mutex       = Mutex.new
+      threads     = []
+
+      files = file_chunker(current_local_file_path)
+      s3_files = []
+      s3_path = ""
+
+      thread_count.times do |i|
+        threads[i] = Thread.new do
+          until files.empty?
+            mutex.synchronize do
+              file_number += 1
+              Thread.current['file_number'] = file_number
+            end
+            file = begin
+                     files.pop
+                   rescue
+                     nil
+                   end
+            next unless file
+
+            log.debug("[#{Thread.current['file_number']}/#{file}] uploading...")
+
+            s3_file_name = File.basename(file)
+
+            s3_resource.bucket(@bucket).object(s3_file_name).upload_file(file)
+            s3_path = "#{@bucket}/#{s3_file_name}"
+            s3_files << s3_path
+          end
+        end
+      end
+      threads.each(&:join)
+      s3_prefix = s3_path.split('_')[0...-1].join("_")
+      [s3_prefix, s3_files]
+    end
+
+    def file_chunker(file, file_number = 5)
+      prefix = file.split('.').first
+      line_count = `wc -l "#{file}"`.strip.split(' ')[0].to_i
+      max_line = line_count / file_number
+      outfilenum = 1
+      files = []
+      file_path = File.dirname(file)
+
+      File.open(file, 'r') do |fh_in|
+        until fh_in.eof?
+          f_path = "#{file_path}/#{prefix}_#{outfilenum}.csv"
+          File.open(f_path, 'w') do |fh_out|
+            count = 0
+            line = ''
+            while (count <= max_line || outfilenum == file_number) && !fh_in.eof?
+              line = fh_in.readline
+              fh_out << line
+              count += 1
+            end
+            files << f_path
+          end
+          outfilenum += 1
+        end
+      end
+      files
+    end
+
+    def remove_chunked_files(file)
+      prefix = file.split('.').first
+      file_path = File.dirname(file)
+      system( "rm #{file_path}/#{prefix}_*.csv ")
     end
 
     def table_exists?(schema, table_name)
