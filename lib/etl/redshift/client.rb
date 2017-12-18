@@ -291,7 +291,7 @@ SQL
           csv_files[t].close
           local_file_path = csv_file_paths[t]
           tmp_table = create_staging_table(tschema.schema, t)
-          copy_from_s3_with_retries(tmp_table, local_file_path, copy_options)
+          copy_multiple_files_from_s3_with_retries(tmp_table, local_file_path, copy_options)
 
           full_table = "#{tschema.schema}.#{t}"
           where_id_join = ''
