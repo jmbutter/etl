@@ -40,6 +40,70 @@ module ETL::Redshift
       @stl_load_retries = 10
     end
 
+    def upload_multiple_files_to_s3(current_local_file_path, thread_count = 5)
+      file_number = 0
+      mutex       = Mutex.new
+      threads     = []
+
+      files = file_chunker(current_local_file_path)
+
+      thread_count.times do |i|
+        threads[i] = Thread.new {
+          until files.empty?
+            mutex.synchronize do
+              file_number += 1
+              Thread.current["file_number"] = file_number
+            end
+            file = files.pop rescue nil
+            next unless file
+
+            puts "[#{Thread.current["file_number"]}/#{file}] uploading..."
+
+            s3_file_name = File.basename(file)
+
+            puts "bucket: #{@bucket}"
+            puts "s3 file name: #{s3_file_name}"
+
+            s3_resource.bucket(@bucket).object(s3_file_name).upload_file(file)
+            s3_path = "#{@bucket}/#{s3_file_name}"
+          end
+        }
+      end
+      threads.each { |t| t.join }
+      s3_path.split("_")[0...-1].join
+    end
+
+    def copy_multiple_files_from_s3(table_name, s3_prefix_path)
+      copy_from_s3(table_name, s3_prefix_path, options=[])
+    end
+
+    def file_chunker(file, file_number = 5)
+      prefix = file.split('.').first
+      line_count = `wc -l "#{file}"`.strip.split(' ')[0].to_i
+      max_line = line_count / file_number
+      outfilenum = 1
+      files = []
+      file_path = File.dirname(file) 
+
+      File.open(file,"r") do |fh_in|
+        until fh_in.eof?
+          f_path = "#{file_path}/#{prefix}_#{outfilenum}.csv"
+          File.open(f_path,"w") do |fh_out|
+            count = 0
+            line = ""
+            while ( count <= max_line || outfilenum == file_number ) && !fh_in.eof?
+              line = fh_in.readline
+              fh_out << line
+              count += 1
+            end
+            files << f_path 
+          end
+          outfilenum += 1
+        end
+      end
+      files
+    end
+
     def s3_resource
       s3_resource = Aws::S3::Resource.new(region: @region)
     end
@@ -232,9 +296,9 @@ SQL
       date_path = DateTime.now.strftime("%Y_%m_%d")
       dir_path = "#{@tmp_dir}/redshift/#{date_path}"
       FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
-      temp_file = "#{dir_path}/#{table_name}_#{SecureRandom.hex(5)}"
-      FileUtils.touch(temp_file)
-      temp_file
+      tmp_file = "#{dir_path}/#{table_name}_#{SecureRandom.hex(5)}"
+      FileUtils.touch(tmp_file)
+      tmp_file
     end
 
     # Upserts rows into the destintation tables based on rows
