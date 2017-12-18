@@ -300,7 +300,7 @@ SQL
       # easy to kiil all the days except the current.
       date_path = DateTime.now.strftime('%Y_%m_%d')
       dir_path = "#{@tmp_dir}/redshift/#{date_path}"
-      FileUtils.makedirs(dir_path) unless Dir.exist?(dir_path)
+      FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
       tmp_file = "#{dir_path}/#{table_name}_#{SecureRandom.hex(5)}"
       FileUtils.touch(tmp_file)
       tmp_file
@@ -394,7 +394,7 @@ SQL
       error_file_name = "#{file_prefix}_errors_#{SecureRandom.hex(5)}"
       date_path = DateTime.now.strftime('%Y_%m_%d')
       dir_path = "#{@tmp_dir}/redshift/#{date_path}"
-      FileUtils.makedirs(dir_path) unless Dir.exist?(dir_path)
+      FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
       error_file_path = "#{dir_path}/#{error_file_name}"
       s3_file_path = "s3://#{@bucket}/error_lines/#{date_path}/#{error_file_name}"
       FileUtils.touch(error_file_path)
