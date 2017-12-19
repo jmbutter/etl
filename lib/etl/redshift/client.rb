@@ -484,7 +484,7 @@ SQL
     end
 
     def file_chunker(file, file_number = 5)
-      prefix = file.split('.').first
+      prefix = file.split('.').first.split('/').last
       line_count = `wc -l "#{file}"`.strip.split(' ')[0].to_i
       max_line = line_count / file_number
       outfilenum = 1
@@ -511,7 +511,7 @@ SQL
     end
 
     def remove_chunked_files(file)
-      prefix = file.split('.').first
+      prefix = file.split('.').first.split('/').last
       file_path = File.dirname(file)
       system( "rm #{file_path}/#{prefix}_*.csv ")
     end
