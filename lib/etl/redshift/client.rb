@@ -41,8 +41,6 @@ module ETL::Redshift
       @slices_s3_files = ENV.fetch('OUTREACH_S3_SLICES', "5").to_i
     end
 
-    
-
     def s3_resource
       s3_resource = Aws::S3::Resource.new(region: @region)
     end
