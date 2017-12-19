@@ -38,6 +38,7 @@ module ETL::Redshift
       @cached_table_schemas = {}
       @tmp_dir = conn_params.fetch(:tmp_dir, '/tmp')
       @stl_load_retries = 10
+      @slices_s3_files = ENV.fetch('OUTREACH_S3_SLICES', "5").to_i
     end
 
     
@@ -445,7 +446,7 @@ SQL
       [error_file_path, s3_errors_file_path]
     end
 
-    def upload_multiple_files_to_s3(current_local_file_path, thread_count = 5)
+    def upload_multiple_files_to_s3(current_local_file_path)
       file_number = 0
       mutex       = Mutex.new
       threads     = []
@@ -454,7 +455,7 @@ SQL
       s3_files = []
       s3_path = ""
 
-      thread_count.times do |i|
+      @slices_s3_files.times do |i|
         threads[i] = Thread.new do
           until files.empty?
             mutex.synchronize do
@@ -483,10 +484,10 @@ SQL
       [s3_prefix, s3_files]
     end
 
-    def file_chunker(file, file_number = 5)
+    def file_chunker(file)
       prefix = file.split('.').first.split('/').last
       line_count = `wc -l "#{file}"`.strip.split(' ')[0].to_i
-      max_line = line_count / file_number
+      max_line = line_count / @slices_s3_files
       outfilenum = 1
       files = []
       file_path = File.dirname(file)
@@ -497,7 +498,7 @@ SQL
           File.open(f_path, 'w') do |fh_out|
             count = 0
             line = ''
-            while (count <= max_line || outfilenum == file_number) && !fh_in.eof?
+            while (count <= max_line || outfilenum == @slices_s3_files) && !fh_in.eof?
               line = fh_in.readline
               fh_out << line
               count += 1
