@@ -389,7 +389,7 @@ SQL
       [error_file_path, s3_errors_file_path]
     end
 
-    def copy_multiple_files_from_s3_with_retries(tmp_table, local_file_path, options, file_num = 5)
+    def copy_multiple_files_from_s3_with_retries(tmp_table, local_file_path, options)
       error_file_path = nil
       s3_errors_file_path = nil
       stl_load_error_found = false
@@ -401,7 +401,7 @@ SQL
         loop do
           stl_load_error_found = false
           begin
-            s3_prefix, s3_multiple_files = upload_multiple_files_to_s3(current_local_file, file_num)
+            s3_prefix, s3_multiple_files = upload_multiple_files_to_s3(current_local_file)
             s3_files += s3_multiple_files
             copy_from_s3(tmp_table, s3_prefix, options)
             break
