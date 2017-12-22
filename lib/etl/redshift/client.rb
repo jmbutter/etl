@@ -279,7 +279,6 @@ SQL
             end
           end
         end
-      ensure
         table_schemas_lookup.each_pair do |t, tschema|
           if rows_processed_map[t] == 0
             log.debug("table #{t} has zero rows no upload required")
