@@ -56,7 +56,8 @@ module ETL::Redshift
     def stl_load_errors(filter_opts)
       s3_file_name = filter_opts.fetch(:s3_filepath)
       query = 'Select * FROM stl_load_errors'
-      query += " where filename = '#{s3_file_name}'" unless s3_file_name.nil?
+      query += " where filename like '#{s3_file_name}%'" unless s3_file_name.nil?
+      query += " order by filename asc"
       db.fetch(query).all
     end
 
@@ -209,7 +210,7 @@ SQL
       execute(sql)
     rescue => e
       if e.to_s.include? 'stl_load_errors'
-        # should only be one error.
+        # there can be multiple errors now since there are multiple files, but report the first one
         load_error = stl_load_errors(s3_filepath: full_s3_path).first
         details = stl_load_error_details(load_error[:query])
         raise RedshiftSTLLoadError.new(load_error, details)
@@ -383,7 +384,7 @@ SQL
     end
 
     def copy_multiple_files_from_s3(tmp_table, local_file_path, options)
-      error = false 
+      error = false
       s3_errors_file_path = nil
       stl_load_error_found = false
       retries = 0
@@ -397,6 +398,7 @@ SQL
         copy_from_s3(tmp_table, s3_prefix, options)
       rescue => e
         error = true
+        raise e
       ensure
         ::File.delete(current_local_file)
         # To-do: remove all local files
