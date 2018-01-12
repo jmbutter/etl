@@ -8,14 +8,14 @@ require 'terminal-table'
 module ETL::Cli::Cmd
   class Job < ETL::Cli::Command
     class Status < ETL::Cli::Command
-      option ['-s', '--start-time'], 'STARTTIME', 'Will query for any jobs starting for a specified start time. Optional parameter, defaults to 2 hours before now', attribute_name: :start_time
+      option ['-s', '--start-time'], 'STARTTIME', 'Will query for any jobs starting for a specified start time. Optional parameter, defaults to 1 hour before now', attribute_name: :start_time
       option ['-t', '--type'], 'TYPE', 'Will query for any jobs with the specified status, defaults to running', attribute_name: :status
-      option ['-e', '--exclude-properties'], 'PROPERTIES', 'Removes specified properties from complete list, default is none', attribute_name: :excluded_properties
-      option ['-i', '--include-properties'], 'PROPERTIES', 'Includes only specified properties, default is none', attribute_name: :included_properties
+      option ['-e', '--exclude-properties'], 'PROPERTIES', 'Removes specified properties from complete list, default is nil', attribute_name: :excluded_properties
+      option ['-i', '--include-properties'], 'PROPERTIES', 'Includes only specified properties, default is nil', attribute_name: :included_properties
       option ['-f', '--format'], 'FORMAT', "Format of the output, can be 'table' or 'json', defaults to 'json'", attribute_name: :format
 
       def execute
-        @start_time = Time.now - 2 * 60 * 60 if @start_time.nil?
+        @start_time = Time.now - 1 * 60 * 60 if @start_time.nil?
         @status = 'running' if @status.nil?
         @format = 'json' if @format.nil?
 
