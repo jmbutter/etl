@@ -7,91 +7,125 @@ require 'terminal-table'
 
 module ETL::Cli::Cmd
   class Job < ETL::Cli::Command
-
     class Status < ETL::Cli::Command
-      option ['-s', '--start-time'], "STARTTIME", "Will query for any jobs starting for a specified start time. Optional parameter, defaults to 2 hours before now", attribute_name: :start_time
-      option ['-t', '--type'], "TYPE", "Will query for any jobs with the specified status, defaults to running", attribute_name: :status
-      option ['-f', '--format'], "FORMAT", "Format of the output, can be 'table' or 'json', defaults to 'json'", attribute_name: :format
+      option ['-s', '--start-time'], 'STARTTIME', 'Will query for any jobs starting for a specified start time. Optional parameter, defaults to 2 hours before now', attribute_name: :start_time
+      option ['-t', '--type'], 'TYPE', 'Will query for any jobs with the specified status, defaults to running', attribute_name: :status
+      option ['-e', '--exclude-properties'], 'PROPERTIES', 'Removes specified properties from complete list, default is none', attribute_name: :excluded_properties
+      option ['-i', '--include-properties'], 'PROPERTIES', 'Includes only specified properties, default is none', attribute_name: :included_properties
+      option ['-f', '--format'], 'FORMAT', "Format of the output, can be 'table' or 'json', defaults to 'json'", attribute_name: :format
 
       def execute
         @start_time = Time.now - 2 * 60 * 60 if @start_time.nil?
         @status = 'running' if @status.nil?
         @format = 'json' if @format.nil?
+
+        return puts "The parameters '--exclude-properties' and '--include-properties' cannot be used at the same time" if !@excluded_properties.nil? && !@included_properties.nil?
+        all_properties = ::ETL::Model::JobRun.properties
+
+        properties = all_properties
+        unless @included_properties.nil?
+          properties = []
+          @included_properties.split(',').each do |p|
+            return puts "Included Property name '#{p}' not a property on JobRun, valid properties are '#{all_properties}' " unless all_properties.include?(p)
+            properties << p
+          end
+        end
+
+        unless @excluded_properties.nil?
+          properties = []
+          @excluded_properties = @excluded_properties.split(',')
+          @excluded_properties.each do |p|
+            return puts "Excluded Property name '#{p}' not a property on JobRun, valid properties are '#{all_properties}' " unless all_properties.include?(p)
+          end
+          all_properties.each do |p|
+            properties << p unless @excluded_properties.include?(p)
+          end
+        end
+
         jrr_instance = ::ETL::Model::JobRunRepository.instance
         found_jobs = jrr_instance.find_by_status(@status, @start_time)
+        view_hash_arr = []
+        found_jobs.each do |job|
+          hash = job.to_h
+          view_hash = {}
+          properties.each do |p|
+            view_hash[p] = hash[p]
+          end
+          view_hash_arr << view_hash
+        end
         if @format == 'table'
           table = Terminal::Table.new do |t|
-            t.headings = 'Id', 'Job', 'Batch', 'Started_At', 'Ended_At', 'Rows_Processed', 'Message'
+            t.headings = properties
           end
-          found_jobs.each do |job|
-            table.add_row([job.id, job.job_id, job.batch, job.started_at, job.ended_at, job.rows_processed, job.message])
+          view_hash_arr.each do |v|
+            table.add_row(v.values)
           end
           puts table
         else
-          return puts "[]" if found_jobs.count.zero?
-          puts JSON.pretty_generate(found_jobs)
+          return puts '[]' if found_jobs.count.zero?
+          puts JSON.pretty_generate(view_hash_arr)
         end
       end
     end
 
     class List < ETL::Cli::Command
-      option ['-m', '--match'], "REGEX", "List only jobs matching regular expression",
+      option ['-m', '--match'], 'REGEX', 'List only jobs matching regular expression',
              attribute_name: :regex, default: // do |r| /#{r}/ end
 
       def execute
-        notifier = ::ETL::Slack::Notifier.create_instance("etl_list")
+        notifier = ::ETL::Slack::Notifier.create_instance('etl_list')
 
         begin
           ETL.load_user_classes
         rescue StandardError => e
           ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
-          notifier.notify("Listing jobs failed: #{e.to_s}") unless notifier.nil?
+          notifier.notify("Listing jobs failed: #{e}") unless notifier.nil?
           throw
         end
         dependencies_jobs = ETL::Job::Manager.instance.sorted_dependent_jobs
         d_jobs = dependencies_jobs.select { |id| id =~ regex }
 
         # Dependencies_jobs sorted by the order to be executed
-        if !d_jobs.empty?
-          output =" *** #{d_jobs.join(' ')}"
+        unless d_jobs.empty?
+          output = " *** #{d_jobs.join(' ')}"
           puts(output)
           notifier.add_text_to_attachments(output) unless notifier.nil?
         end
 
         # Independent_jobs
-        ETL::Job::Manager.instance.job_classes.select do |id, klass|
+        ETL::Job::Manager.instance.job_classes.select do |id, _klass|
           id =~ regex
         end.each do |id, klass|
-          output = " * #{id} (#{klass.name.to_s})"
+          output = " * #{id} (#{klass.name})"
           puts(output) unless d_jobs.include? id
           notifier.add_text_to_attachments(output) unless notifier.nil?
         end
-        notifier.notify("List ETL Jobs") unless notifier.nil?
+        notifier.notify('List ETL Jobs') unless notifier.nil?
       end
     end
 
     class Run < ETL::Cli::Command
-      parameter "JOB_ID", "ID of job we are running", required: false, default: ''
+      parameter 'JOB_ID', 'ID of job we are running', required: false, default: ''
 
-      option ['-b', '--batch'], "BATCH", "Batch for the job in JSON or 'key1=value1;key2=value2' format", attribute_name: :batch_str
-      option ['-q', '--queue'], :flag, "Queue the job instead of running now"
-      option ['-m', '--match'], :flag, "Treat job ID as regular expression filter and run matching jobs"
+      option ['-b', '--batch'], 'BATCH', "Batch for the job in JSON or 'key1=value1;key2=value2' format", attribute_name: :batch_str
+      option ['-q', '--queue'], :flag, 'Queue the job instead of running now'
+      option ['-m', '--match'], :flag, 'Treat job ID as regular expression filter and run matching jobs'
 
       def execute
-        notifier = ::ETL::Slack::Notifier.create_instance("etl_run")
+        notifier = ::ETL::Slack::Notifier.create_instance('etl_run')
 
         begin
           ETL.load_user_classes
         rescue StandardError => e
           ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
-          notifier.notify_exception("Loading jobs failed:", e) unless notifier.nil?
+          notifier.notify_exception('Loading jobs failed:', e) unless notifier.nil?
           throw
         end
 
         klasses = job_classes(job_id, match?)
         if @batch_str
           if match?
-            raise ETL::UsageError, "Cannot pass batch with multiple jobs"
+            raise ETL::UsageError, 'Cannot pass batch with multiple jobs'
           end
           _, klass = klasses.fetch(0)
           begin
@@ -103,18 +137,18 @@ module ETL::Cli::Cmd
         else
           # No batch string
           klasses.each do |id, klass|
-            begin 
+            begin
               klass.batch_factory.each do |batch|
                 begin
                   run_batch(id, batch)
                 rescue StandardError => e
                   ETL.logger.exception(e, Logger::DEBUG)
-                  notifier.notify_exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
+                  notifier.notify_exception("Running batch #{batch} failed", e) unless notifier.nil?
                 end
               end
             rescue StandardError => e
               ETL.logger.exception(e, Logger::DEBUG) # don't lose the message!
-              notifier.notify_exception("Running batch #{batch.to_s} failed", e) unless notifier.nil?
+              notifier.notify_exception("Running batch #{batch} failed", e) unless notifier.nil?
             end
           end
         end
@@ -123,11 +157,11 @@ module ETL::Cli::Cmd
       def job_classes(job_expr, fuzzy)
         klasses = ETL::Job::Manager.instance.job_classes
         if klasses.empty?
-          log.warn("No registered jobs")
+          log.warn('No registered jobs')
           exit(0)
         end
         if fuzzy
-          klasses.select do |id, klass|
+          klasses.select do |id, _klass|
             id =~ /#{job_expr}/
           end.tap do |ks|
             raise "Found no job IDs matching '#{job_expr}'" if ks.empty?

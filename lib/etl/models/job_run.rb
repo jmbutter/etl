@@ -4,8 +4,17 @@ require 'etl/mixins/cached_logger'
 
 module ETL::Model
   class JobRun
+    class << self
+      def symbolized_properties
+        %i[id created_at update_at job_id batch status queued_at started_at updated_at ended_at rows_processed message]
+      end
+
+      def properties
+        symbolized_properties.map { |p| p.to_s.sub(':', '') }
+      end
+    end
     include ETL::CachedLogger
-    attr_accessor :id, :created_at, :update_at, :job_id, :batch, :status, :queued_at, :started_at, :updated_at, :ended_at, :rows_processed, :message
+    attr_accessor(*symbolized_properties)
 
     def initialize(repository)
       @repository = repository
@@ -13,20 +22,14 @@ module ETL::Model
 
     def to_h
       hash = {}
-      self.instance_variables.each do |var|
-        next if var.to_s == "@repository"
-        hash[var.to_s.gsub!('@','')] = self.instance_variable_get var
+      JobRun.properties.each do |p|
+        hash[p] = instance_variable_get "@#{p}"
       end
       hash
     end
 
-    def to_json(generator_state)
-        hash = to_h
-        hash.to_json
-    end
-
     def success?
-      self.status == :success
+      status == :success
     end
 
     # Sets the final status as success along with rows affected
@@ -53,7 +56,7 @@ module ETL::Model
     end
 
     # Sets the current status as queued and sets queued_at
-    def queued()
+    def queued
       self.status = :queued
       self.queued_at = Time.now
       self.updated_at = Time.now
@@ -61,6 +64,7 @@ module ETL::Model
     end
 
     private
+
     def final_state(state, result)
       self.status = state
       self.updated_at = Time.now

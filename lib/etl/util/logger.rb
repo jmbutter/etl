@@ -9,6 +9,9 @@ module ETL
     def initialize(params = {})
       super(params[:file] || STDOUT)
       self.level = self.class.string_to_severity(params[:level])
+      level_str = ENV["ETL_LOG_LEVEL"]
+      env_level = self.class.string_to_severity(level_str) unless level_str.nil?
+      self.level = env_level unless env_level.nil?
       @formatter = Formatter.new
     end
     
