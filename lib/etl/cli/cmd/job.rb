@@ -1,9 +1,38 @@
 require_relative '../command'
 require_relative '../../slack/notifier'
 require 'etl/job/exec'
+require 'etl/models/job_run'
+require 'etl/models/job_run_repository'
+require 'terminal-table'
 
 module ETL::Cli::Cmd
   class Job < ETL::Cli::Command
+
+    class Status < ETL::Cli::Command
+      option ['-s', '--start-time'], "STARTTIME", "Will query for any jobs starting for a specified start time. Optional parameter, defaults to 2 hours before now", attribute_name: :start_time
+      option ['-t', '--type'], "TYPE", "Will query for any jobs with the specified status, defaults to running", attribute_name: :status
+      option ['-f', '--format'], "FORMAT", "Format of the output, can be 'table' or 'json', defaults to 'json'", attribute_name: :format
+
+      def execute
+        @start_time = Time.now - 2 * 60 * 60 if @start_time.nil?
+        @status = 'running' if @status.nil?
+        @format = 'json' if @format.nil?
+        jrr_instance = ::ETL::Model::JobRunRepository.instance
+        found_jobs = jrr_instance.find_by_status(@status, @start_time)
+        if @format == 'table'
+          table = Terminal::Table.new do |t|
+            t.headings = 'Id', 'Job', 'Batch', 'Started_At', 'Ended_At', 'Rows_Processed', 'Message'
+          end
+          found_jobs.each do |job|
+            table.add_row([job.id, job.job_id, job.batch, job.started_at, job.ended_at, job.rows_processed, job.message])
+          end
+          puts table
+        else
+          return puts "[]" if found_jobs.count.zero?
+          puts JSON.pretty_generate(found_jobs)
+        end
+      end
+    end
 
     class List < ETL::Cli::Command
       option ['-m', '--match'], "REGEX", "List only jobs matching regular expression",
@@ -131,7 +160,7 @@ module ETL::Cli::Cmd
         end
       end
     end
-
+    subcommand 'status', 'Lists all batches currently in-progress', Job::Status
     subcommand 'list', 'Lists all jobs registered with ETL system', Job::List
     subcommand 'run', 'Runs (or enqueues) specified jobs + batches', Job::Run
   end

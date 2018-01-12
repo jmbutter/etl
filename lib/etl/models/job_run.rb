@@ -1,3 +1,4 @@
+require 'json'
 require 'etl'
 require 'etl/mixins/cached_logger'
 
@@ -9,7 +10,21 @@ module ETL::Model
     def initialize(repository)
       @repository = repository
     end
-    
+
+    def to_h
+      hash = {}
+      self.instance_variables.each do |var|
+        next if var.to_s == "@repository"
+        hash[var.to_s.gsub!('@','')] = self.instance_variable_get var
+      end
+      hash
+    end
+
+    def to_json(generator_state)
+        hash = to_h
+        hash.to_json
+    end
+
     def success?
       self.status == :success
     end

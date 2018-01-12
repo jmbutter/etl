@@ -147,6 +147,16 @@ module ETL::Model
       job_run_query(sql)
     end
 
+    # Finds all batches currently of a specified status starting from the time specified
+    # If a job was aborted sometimes its not noted as completed in the database so
+    # only looking at jobs from a certain time forward. Default is now - 6 hours
+    # which can be re-configured
+    def find_by_status(status, initial_start_time)
+      initial_start_time = Time.now - 6 * 60 * 60 if initial_start_time.nil?
+      sql = "Select * from #{@schema_name}.job_runs where status = '#{status}' and started_at > '#{initial_start_time}';"
+      job_run_query(sql)
+    end
+
     # Returns true if this job+batch has pending jobs
     def has_pending?(job, batch)
       sql = "Select count(*) from #{@schema_name}.job_runs where job_id = '#{job.id}' and batch = '#{batch.to_json}' and ( status = 'queued' or status = 'running' );"
