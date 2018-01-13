@@ -308,10 +308,10 @@ SQL
       ensure
         # if we hit an exception while processing the inputs, we may still have open file handles
         # so go ahead and close them, then delete the files
-        csv_files.each do |f|
+        csv_files.each do |table, f|
           f.close # if the file is already closed, this will do nothing
         end
-        csv_file_paths.each do |f|
+        csv_file_paths.each do |table, f|
           ::File.delete(f) if ::File.exist?(f)
         end
       end
