@@ -305,6 +305,15 @@ SQL
           add_sql = add_new_data.build_sql(tmp_table, full_table, where_id_join: where_id_join)
           execute(add_sql)
         end
+      ensure
+        # if we hit an exception while processing the inputs, we may still have open file handles
+        # so go ahead and close them, then delete the files
+        csv_files.each do |table, f|
+          f.close # if the file is already closed, this will do nothing
+        end
+        csv_file_paths.each do |table, f|
+          ::File.delete(f) if ::File.exist?(f)
+        end
       end
       highest_num_rows_processed = 0
 
@@ -400,7 +409,6 @@ SQL
         error = true
         raise e
       ensure
-        ::File.delete(current_local_file)
         # To-do: remove all local files
         remove_chunked_files(current_local_file)
 
