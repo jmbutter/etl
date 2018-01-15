@@ -12,7 +12,13 @@ module ETL::Model
       def properties
         symbolized_properties.map { |p| p.to_s.sub(':', '') }
       end
+
+      def load_json_file(file_path)
+        json_file = File.read(file_path)
+        JSON.parse(json_file)
+      end
     end
+
     include ETL::CachedLogger
     attr_accessor(*symbolized_properties)
 

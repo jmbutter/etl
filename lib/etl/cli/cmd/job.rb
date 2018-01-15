@@ -107,13 +107,13 @@ module ETL::Cli::Cmd
     class Run < ETL::Cli::Command
       parameter 'JOB_ID', 'ID of job we are running', required: false, default: ''
 
+      option ['-i', '--input'], 'INPUT', 'Provide a json file that has a list of job and batches to run', attribute_name: :input_file
       option ['-b', '--batch'], 'BATCH', "Batch for the job in JSON or 'key1=value1;key2=value2' format", attribute_name: :batch_str
       option ['-q', '--queue'], :flag, 'Queue the job instead of running now'
       option ['-m', '--match'], :flag, 'Treat job ID as regular expression filter and run matching jobs'
 
       def execute
         notifier = ::ETL::Slack::Notifier.create_instance('etl_run')
-
         begin
           ETL.load_user_classes
         rescue StandardError => e
@@ -122,7 +122,38 @@ module ETL::Cli::Cmd
           throw
         end
 
+        if @input_file && @batch_str
+          raise ETL::UsageError, 'Invalid parameters, -i can not be used with -b'
+        end
+        if @input_file
+          job_run_inputs = nil
+          begin
+            job_run_inputs = ::ETL::Model::JobRun.load_json_file(@input_file)
+            puts "input: #{job_run_inputs}"
+          rescue StandardError => e
+            ETL.logger.exception(e, Logger::DEBUG)
+            notifier.notify_exception("Loading jobs and batches from file #{@input_file} failed", e) unless notifier.nil?
+          end
+          job_run_inputs.each do |jr|
+            id = jr['job_id']
+            batch_str = jr['batch']
+            klass = ETL::Job::Manager.instance.get_class(id)
+            if klass.nil?
+              raise ETL::UsageError, "Cannot find a job with specified job_id: '#{id}'"
+            end
+            batch = klass.batch_factory.parse!(batch_str)
+            begin
+              run_batch(id, batch)
+            rescue StandardError => e
+              ETL.logger.exception(e, Logger::DEBUG)
+              notifier.notify_exception("Running batch #{batch} failed", e) unless notifier.nil?
+            end
+          end
+          return
+        end
+
         klasses = job_classes(job_id, match?)
+
         if @batch_str
           if match?
             raise ETL::UsageError, 'Cannot pass batch with multiple jobs'
