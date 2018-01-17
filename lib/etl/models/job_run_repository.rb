@@ -159,8 +159,14 @@ module ETL::Model
 
     # find the last successful batch for the specified job
     # returns no values if none found.
-    def find_latest_successful_job_run(job_id)
-      sql = "select Max(ended_at) as ended_at, id, created_at, updated_at, job_id, batch, status, queued_at, started_at, rows_processed, message from #{@schema_name}.job_runs where job_id = '#{job_id}' and status = 'success' group by id, created_at, updated_at, job_id, batch, status, queued_at, started_at, ended_at, rows_processed, message"
+    def find_latest_job_run(job_id, opts = {})
+      status = opts[:status]
+      group_by = 'group by id, created_at, updated_at, job_id, batch, status, queued_at, started_at, ended_at, rows_processed, message'
+      sql = "select Max(ended_at) as ended_at, id, created_at, updated_at, job_id, batch, status, queued_at, started_at, rows_processed, message from #{@schema_name}.job_runs where job_id = '#{job_id}'"
+      unless status.nil?
+        sql = sql + " and status = '#{status}'"
+      end
+      sql = sql + " #{group_by}"
       job_run_query(sql)
     end
 
