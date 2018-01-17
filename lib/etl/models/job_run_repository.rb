@@ -157,6 +157,13 @@ module ETL::Model
       job_run_query(sql)
     end
 
+    # find the last successful batch for the specified job
+    # returns no values if none found.
+    def find_latest_successful_job_run(job_id)
+      sql = "select Max(ended_at) as ended_at, id, created_at, updated_at, job_id, batch, status, queued_at, started_at, rows_processed, message from #{@schema_name}.job_runs where job_id = '#{job_id}' and status = 'success' group by id, created_at, updated_at, job_id, batch, status, queued_at, started_at, ended_at, rows_processed, message"
+      job_run_query(sql)
+    end
+
     # Returns true if this job+batch has pending jobs
     def has_pending?(job, batch)
       sql = "Select count(*) from #{@schema_name}.job_runs where job_id = '#{job.id}' and batch = '#{batch.to_json}' and ( status = 'queued' or status = 'running' );"
