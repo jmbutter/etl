@@ -4,7 +4,10 @@ repos:
     hooks:
     -   id: detect-aws-credentials
     -   id: detect-private-key
--   repo: https://github.com/getoutreach/sanctify
-    sha: f16b0b2a560fe87f5ad5503da561a47be76f8956
+-   repo: local
     hooks:
-    -   id: sanctify
+    -   id: secret-check-hook
+        name: "Sanctify Secret Scanner"
+        entry: ./bin/secret-check
+        language: script
+        files: .
