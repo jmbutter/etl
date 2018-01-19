@@ -101,6 +101,11 @@ module ETL::Redshift
       execute_ddl(sql)
     end
 
+    def rename_column(schema, table, oldname, newname)
+      sql =  "ALTER TABLE #{schema}.#{table}"
+      sql += "  RENAME COLUMN #{oldname} TO #{newname}"
+    end
+
     def table_schema(schema_name, table_name)
       cached_table = nil
       full_name = "#{schema_name}.#{table_name}"
