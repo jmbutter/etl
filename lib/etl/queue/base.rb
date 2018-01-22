@@ -50,8 +50,6 @@ module ETL::Queue
 
     def handle_incoming_messages
       process_async do |message_info, payload|
-        pause_work_if_dequeuing_paused
-
         begin
           log.debug("Payload: #{payload.to_s}")
           ETL::Job::Exec.new(payload).run
@@ -64,6 +62,8 @@ module ETL::Queue
           # failing, thus blocking the whole queue.
           ETL.queue.ack(message_info)
         end
+
+        pause_work_if_dequeuing_paused
       end
 
       # Just sleep indefinitely so the program doesn't end. This doesn't pause the

@@ -69,13 +69,11 @@ module ETL::Queue
     end
 
     # Sqs seems to have slightly different semantics
-    # we are acking after we have recieved the message but before 
+    # we are acking after we have recieved the message but before
     # we run it. Previously a job would be run on multiple workers
     # this is an attempt to stop that.
     def handle_incoming_messages
       process_async do |message_info, payload|
-        pause_work_if_dequeuing_paused
-
         begin
           log.debug("Payload: #{payload.to_s}")
         rescue StandardError => ex
@@ -83,7 +81,7 @@ module ETL::Queue
           # to still process even though this one is skipped.
           log.exception(ex)
         ensure
-          # Acknowledge that this job was handled so we don't keep retrying and 
+          # Acknowledge that this job was handled so we don't keep retrying and
           # failing, thus blocking the whole queue.
           ETL.queue.ack(message_info)
         end
@@ -94,6 +92,8 @@ module ETL::Queue
           # to still process even though this one is skipped.
           log.exception(ex)
         end
+
+        pause_work_if_dequeuing_paused
       end
 
       # Just sleep indefinitely so the program doesn't end. This doesn't pause the
