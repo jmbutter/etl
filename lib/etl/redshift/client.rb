@@ -233,7 +233,7 @@ SQL
       date_path = DateTime.now.strftime('%Y_%m_%d')
       dir_path = "#{@tmp_dir}/redshift/#{date_path}"
       FileUtils.makedirs(dir_path) unless Dir.exists?(dir_path)
-      tmp_file = "#{dir_path}/#{table_name}_#{SecureRandom.hex(5)}"
+      tmp_file = "#{dir_path}/#{table_name}_#{SecureRandom.hex(10)}"
       FileUtils.touch(tmp_file)
       tmp_file
     end
@@ -426,6 +426,13 @@ SQL
       files = file_chunker(current_local_file_path)
       s3_files = []
       s3_path = ""
+      s3_folder = File.basename(current_local_file_path)
+
+      # delete the folder if it already exists, to make sure we don't accidentally upload duplicates
+      # if we accidentally create a duplicate hash
+      # the "folder" will get recreated as soon as we upload the new files
+      # since a folder in s3 is really just a prefix on the filename
+      s3_resource.bucket(@bucket).objects({prefix: "#{s3_folder}/"}).batch_delete!
 
       thread_count.times do |i|
         threads[i] = Thread.new do
@@ -441,12 +448,11 @@ SQL
                    end
             next unless file
 
-            log.debug("[#{Thread.current['file_number']}/#{file}] uploading...")
-
             s3_file_name = File.basename(file)
-
-            s3_resource.bucket(@bucket).object(s3_file_name).upload_file(file)
-            s3_path = "#{@bucket}/#{s3_file_name}"
+            log.debug("[#{Thread.current['file_number']}/#{file}] uploading...")
+            s3_obj_path = "#{s3_folder}/#{s3_file_name}"
+            s3_resource.bucket(@bucket).object(s3_obj_path).upload_file(file)
++           s3_path = "#{@bucket}/#{s3_obj_path}"
             s3_files << s3_path
           end
         end
@@ -470,7 +476,7 @@ SQL
           File.open(f_path, 'w') do |fh_out|
             count = 0
             line = ''
-            while (count <= max_line || outfilenum == @slices_s3_files) && !fh_in.eof?
+            while (count < max_line || outfilenum == @slices_s3_files) && !fh_in.eof?
               line = fh_in.readline
               fh_out << line
               count += 1
