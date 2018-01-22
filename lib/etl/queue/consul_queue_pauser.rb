@@ -7,7 +7,6 @@ module ETL
       def initialize
         @consul_key_path = ENV["ETL_PAUSE_QUEUE_CONSUL_KEY_PATH"]
         @consul_key_path = 'etl/queue_paused' if @consul_key_path.nil?
-        @kv = ::Diplomat::Kv.initialize
       end
 
       def current_value
