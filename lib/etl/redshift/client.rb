@@ -195,7 +195,8 @@ SQL
 
     def copy_from_s3(table_name, s3_path, options = [])
       full_s3_path = "s3://#{s3_path}"
-      additional_options = options.join("\n")
+      additional_options = ''
+      additional_options = options.join("\n") unless options.nil?
       sql = <<SQL
           COPY #{table_name}
           FROM '#{full_s3_path}'
