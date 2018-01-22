@@ -74,6 +74,8 @@ module ETL
 
   def ETL.create_queue
     ETL.create_class(:queue)
+    queue_pauser = ETL.config.core[:queue][:queue_pauser]
+    ETL.queue.dequeue_pauser = Object::const_get(queue_pauser) unless queue_pauser.nil?
   end
 
   # Helper function to create a class given a class name stored in the config
