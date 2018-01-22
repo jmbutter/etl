@@ -74,6 +74,8 @@ module ETL::Queue
     # this is an attempt to stop that.
     def handle_incoming_messages
       process_async do |message_info, payload|
+        pause_work_if_dequeuing_paused
+
         begin
           log.debug("Payload: #{payload.to_s}")
         rescue StandardError => ex
