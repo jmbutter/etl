@@ -2,16 +2,16 @@ require 'etl/redshift/client'
 require 'etl/redshift/table'
 require 'etl/core'
 
-def create_test_file
-  File.open("client_test.csv", "w+") do |f|
-    20.times do |i|
+def create_test_file(filename = "client_test_file", rows = 20)
+  File.open(filename, "w+") do |f|
+    rows.times do |i|
       f.write("abc|def|ghi#{i}\n")
     end
   end
 end
 
-def delete_test_file
-  system( "rm client_test*.csv ")
+def delete_test_file(filename = "client_test_file")
+  system( "rm #{filename} ")
 end
 
 def create_test_table(client)
@@ -318,6 +318,8 @@ SQL
 
         result = client.fetch("select count(*) from test_s3_copy").all
         expect(result[0][:count]).to eq(9)
+
+        ::File.delete(csv_file_path)
       end
     end
 
@@ -345,12 +347,43 @@ SQL
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
       create_test_table(client2)
       client2.delimiter = '|'
-      client2.upload_multiple_files_to_s3("client_test.csv")
-      client2.copy_from_s3('client_test', "ss-uw1-stg.redshift-testing/client_test")
+      client2.upload_multiple_files_to_s3("client_test_file")
+      client2.copy_from_s3('client_test', "ss-uw1-stg.redshift-testing/client_test_file/client_test_file")
+      client2.remove_chunked_files("client_test_file")
 
       result = client2.fetch("select count(*) from client_test").all
       expect(result[0][:count]).to eq(20)
       delete_test_file
+      client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
+    end
+
+    it 'removes folder if it already exists' do
+      client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
+      # make sure the destination folder doesn't exist
+      client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
+
+      # upload a file with 20 rows
+      # this gets chunked into 5 files with 4 rows each
+      create_test_file("client_test_file", 20)
+      client2.upload_multiple_files_to_s3("client_test_file")
+      delete_test_file
+      client2.remove_chunked_files("client_test_file")
+
+      # now upload another file with only 10 rows
+      # this gets chunked into 5 files with 2 rows each
+      create_test_file("client_test_file", 10)
+      client2.upload_multiple_files_to_s3("client_test_file")
+      delete_test_file
+      create_test_table(client2)
+      client2.delimiter = '|'
+      client2.copy_from_s3('client_test', "ss-uw1-stg.redshift-testing/client_test_file/client_test_file")
+      client2.remove_chunked_files("client_test_file")
+      # clear out the temp files from s3
+      client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
+
+      # verify we only got 10 rows
+      result = client2.fetch("select count(*) from client_test").all
+      expect(result[0][:count]).to eq(10)
     end
   end
 end
