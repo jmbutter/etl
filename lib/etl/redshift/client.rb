@@ -432,7 +432,7 @@ SQL
       # if we accidentally create a duplicate hash
       # the "folder" will get recreated as soon as we upload the new files
       # since a folder in s3 is really just a prefix on the filename
-      #s3_resource.bucket(@bucket).objects({prefix: "#{s3_folder}/"}).batch_delete!
+      s3_resource.bucket(@bucket).objects({prefix: "#{s3_folder}/"}).batch_delete!
 
       thread_count.times do |i|
         threads[i] = Thread.new do
@@ -450,10 +450,10 @@ SQL
 
             s3_file_name = File.basename(file)
             log.debug("[#{Thread.current['file_number']}/#{file}] uploading...")
-
-            s3_resource.bucket(@bucket).object(s3_file_name).upload_file(file)
-+           s3_path = "#{@bucket}/#{s3_file_name}"
-            s3_files << s3_path
+            s3_obj_path = "#{s3_folder}/#{s3_file_name}"
+            s3_resource.bucket(@bucket).object(s3_obj_path).upload_file(file)
++           s3_path = "#{@bucket}/#{s3_obj_path}"
+            s3_files << s3_obj_path
           end
         end
       end
