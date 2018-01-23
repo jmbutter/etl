@@ -432,7 +432,7 @@ SQL
       # if we accidentally create a duplicate hash
       # the "folder" will get recreated as soon as we upload the new files
       # since a folder in s3 is really just a prefix on the filename
-      delete_object_from_s3(@bucket, "#{s3_folder}/", nil)
+      delete_object_from_s3(@bucket, "#{s3_folder}", nil)
 
       thread_count.times do |i|
         threads[i] = Thread.new do
