@@ -101,7 +101,7 @@ SQL
       expect(rows).to eq([{:column=>"day", :type=>"timestamp without time zone"}])
     end
 
-    it 'append data into one table', skip: true do
+    it 'append data into one table' do
       client.drop_table('public', 'simple_table_foo')
       create_table = <<SQL
   create table simple_table_foo (
@@ -342,12 +342,15 @@ SQL
       ::File.delete("#{csv_file_name}_1")
     end
 
-    it "#upload_multiple_files_to_s3", skip: true do
+    it "#upload_multiple_files_to_s3" do
       create_test_file
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
       create_test_table(client2)
       client2.delimiter = '|'
+      client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
+      expect(client2.s3_resource.bucket(client2.bucket).object('client_test_file/client_test_file_1.csv').exists?).to eq(false)
       client2.upload_multiple_files_to_s3("client_test_file")
+      expect(client2.s3_resource.bucket(client2.bucket).object('client_test_file/client_test_file_1.csv').exists?).to eq(true)
       client2.copy_from_s3('client_test', "ss-uw1-stg.redshift-testing/client_test_file/client_test_file")
       client2.remove_chunked_files("client_test_file")
 
@@ -355,9 +358,10 @@ SQL
       expect(result[0][:count]).to eq(20)
       delete_test_file
       client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
+      expect(client2.s3_resource.bucket(client2.bucket).object('client_test_file/client_test_file_1.csv').exists?).to eq(false)
     end
 
-    it 'removes folder if it already exists', skip: true do
+    it 'removes folder if it already exists' do
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
       # make sure the destination folder doesn't exist
       client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
@@ -379,7 +383,9 @@ SQL
       client2.copy_from_s3('client_test', "ss-uw1-stg.redshift-testing/client_test_file/client_test_file")
       client2.remove_chunked_files("client_test_file")
       # clear out the temp files from s3
+      expect(client2.s3_resource.bucket(client2.bucket).object('client_test_file/client_test_file_1.csv').exists?).to eq(true)
       client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
+      expect(client2.s3_resource.bucket(client2.bucket).object('client_test_file/client_test_file_1.csv').exists?).to eq(false)
 
       # verify we only got 10 rows
       result = client2.fetch("select count(*) from client_test").all
