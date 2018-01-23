@@ -101,7 +101,7 @@ SQL
       expect(rows).to eq([{:column=>"day", :type=>"timestamp without time zone"}])
     end
 
-    it 'append data into one table' do
+    it 'append data into one table', skip: true do
       client.drop_table('public', 'simple_table_foo')
       create_table = <<SQL
   create table simple_table_foo (
@@ -342,7 +342,7 @@ SQL
       ::File.delete("#{csv_file_name}_1")
     end
 
-    it "#upload_multiple_files_to_s3" do
+    it "#upload_multiple_files_to_s3", skip: true do
       create_test_file
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
       create_test_table(client2)
@@ -357,7 +357,7 @@ SQL
       client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
     end
 
-    it 'removes folder if it already exists' do
+    it 'removes folder if it already exists', skip: true do
       client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
       # make sure the destination folder doesn't exist
       client2.s3_resource.bucket(client2.bucket).objects({prefix: "client_test_file/"}).batch_delete!
