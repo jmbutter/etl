@@ -2,8 +2,12 @@ require 'etl/core'
 require 'mixins/cached_logger'
 require 'pg'
 require 'erb'
+require 'thread'
 
 module ETL::Model
+  class << self
+    attr_accessor :jrr_mutex
+  end
   # handles interacting with the data store.
   class JobRunRepository
     include ETL::CachedLogger
@@ -17,6 +21,7 @@ module ETL::Model
       @schema_name = schema_name
       @conn_params = ETL.config.core[:database] if @conn_params.nil?
       @conn_params = prep_conn(@conn_params)
+      ETL::Model.jrr_mutex = Mutex.new if ETL::Model.jrr_mutex.nil?
     end
 
     def prep_conn(conn_params)
@@ -61,7 +66,7 @@ module ETL::Model
     end
 
     def create_table
-      @conn.exec(self.class.create_table_sql)
+      exec_sql(self.class.create_table_sql)
     end
 
     # Creates JobRun object from Job and batch date
@@ -72,7 +77,7 @@ module ETL::Model
       jr.status = :new
       jr.batch = batch.to_json
       insert_sql = "INSERT INTO #{@schema_name}.job_runs(created_at, updated_at, job_id, batch, status) VALUES ('#{Time.now}','#{Time.at(0)}', '#{job.id}', '#{batch.to_json}', 'new') RETURNING id";
-      r = conn.exec(insert_sql).values
+      r = exec_sql(insert_sql).values
       if r.length == 0
         return nil
       end
@@ -100,13 +105,13 @@ module ETL::Model
       end
 
       update_sql = update_sql + " WHERE id = #{jr.id}"
-      conn.exec(update_sql)
+      exec_sql(update_sql)
       jr
     end
 
     def tables
       sql = "SELECT tablename FROM pg_catalog.pg_tables where schemaname = '#{@schema_name}'"
-      r = conn.exec(sql)
+      r = exec_sql(sql)
       table_names = []
       r.each do |row|
         table_names << row["tablename"]
@@ -116,7 +121,7 @@ module ETL::Model
 
     def table_schema(table_name)
       sql = "SELECT * FROM information_schema.columns WHERE table_schema = '#{@schema_name}' AND table_name = '#{table_name}'"
-      r = conn.exec(sql)
+      r = exec_sql(sql)
       columns = {}
       r.each do |c|
         columns[c["column_name"].to_st ] = c["data_type"]
@@ -173,7 +178,7 @@ module ETL::Model
     # Returns true if this job+batch has pending jobs
     def has_pending?(job, batch)
       sql = "Select count(*) from #{@schema_name}.job_runs where job_id = '#{job.id}' and batch = '#{batch.to_json}' and ( status = 'queued' or status = 'running' );"
-      r = conn.exec(sql)
+      r = exec_sql(sql)
       count = r.first["count"].to_i
       count >  0
     end
@@ -181,7 +186,7 @@ module ETL::Model
     # Returns whether there have been any successful runs of this job+batch
     def was_successful?(job, batch)
       sql = "Select * from #{@schema_name}.job_runs where job_id = '#{job.id}' and batch = '#{batch.to_json}' and status = 'success';"
-      r = conn.exec(sql)
+      r = exec_sql(sql)
       r.cmd_tuples > 0
     end
 
@@ -194,7 +199,7 @@ module ETL::Model
     end
 
     def job_run_query(sql)
-      r = conn.exec(sql)
+      r = exec_sql(sql)
       job_runs = []
       r.each do |single_result|
         job_runs << ::ETL::Model::JobRunRepository.build_job_run(self, single_result)
@@ -217,6 +222,16 @@ module ETL::Model
       jr.message = r["message"]
       jr
     end
+
+    private
+
+      def exec_sql(sql)
+        result = nil
+
+        ETL::Model.jrr_mutex.synchronize do
+          result = conn.exec(sql)
+        end
+        result
+      end
   end
 end
-
