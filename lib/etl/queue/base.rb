@@ -49,6 +49,8 @@ module ETL::Queue
     end
 
     def handle_incoming_messages
+      pause_work_if_dequeuing_paused
+ 
       process_async do |message_info, payload|
         begin
           log.debug("Payload: #{payload.to_s}")
