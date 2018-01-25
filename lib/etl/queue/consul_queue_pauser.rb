@@ -25,7 +25,7 @@ module ETL
 
     class ConsulQueuePauser
       def initialize
-        @client = ::ConsulQueueValueClient.new
+        @client = ::ETL::Queue::ConsulQueueValueClient.new
       end
 
       def pause_dequeueing?
