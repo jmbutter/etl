@@ -74,8 +74,8 @@ module ETL
 
   def ETL.create_queue
     queue = ETL.create_class(:queue)
-    queue_pauser = ETL.config.core[:queue][:queue_pauser]
-    queue.dequeue_pauser = Object::const_get(queue_pauser) unless queue_pauser.nil?
+    queue_pauser_class = ETL.config.core[:queue][:queue_pauser] 
+    queue.dequeue_pauser = Object::const_get(queue_pauser).new unless queue_pauser_class.nil?
     queue
   end
 
