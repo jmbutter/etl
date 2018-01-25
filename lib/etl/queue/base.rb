@@ -52,16 +52,15 @@ module ETL::Queue
       pause_work_if_dequeuing_paused
  
       process_async do |message_info, payload|
+        # note not acking on non user exceptions because we want the messages to be re-queued if process was killed though a sigterm
         begin
           log.debug("Payload: #{payload.to_s}")
           ETL::Job::Exec.new(payload).run
+          ETL.queue.ack(message_info)
         rescue StandardError => ex
           # Log and ignore all exceptions. We want other jobs in the queue
           # to still process even though this one is skipped.
           log.exception(ex)
-        ensure
-          # Acknowledge that this job was handled so we don't keep retrying and
-          # failing, thus blocking the whole queue.
           ETL.queue.ack(message_info)
         end
 
