@@ -10,12 +10,14 @@ module ETL::Queue
       @params = params
       @conn = Bunny.new(params[:amqp_uri],
         heartbeat: params[:heartbeat],
-        vhost: params[:vhost]
+        vhost: params[:vhost],
+        threaded: params.fetch(:threaded, false)
         )
       @conn.start
       @channel = @conn.create_channel(nil, params[:channel_pool_size])
       @channel.prefetch(params[:prefetch_count])
       @queue = @channel.queue(params[:queue], :durable => true)
+      @block = params.fetch(:block, true)
     end
     
     def to_s
@@ -43,7 +45,7 @@ module ETL::Queue
     end
 
     def process_async
-      @queue.subscribe(:manual_ack => true, :block => false) do |delivery_info, properties, body|
+      @queue.subscribe(:manual_ack => true, :block => @block) do |delivery_info, properties, body|
         payload = ETL::Queue::Payload.decode(body)
         yield delivery_info.delivery_tag, payload
       end
