@@ -11,7 +11,7 @@ module ETL::Queue
       @conn = Bunny.new(params[:amqp_uri],
         heartbeat: params[:heartbeat],
         vhost: params[:vhost],
-        threaded: params.fetch(:threaded, true)
+        threaded: params.fetch(:threaded, false)
         )
       @conn.start
       @channel = @conn.create_channel(nil, params[:channel_pool_size])
