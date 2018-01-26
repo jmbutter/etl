@@ -5,13 +5,13 @@ module ETL::Queue
 
   # Class that handles queueing using Bunny gem for RabbitMQ
   class RabbitMQ < Base
-    
+
     def initialize(params)
       @params = params
       @conn = Bunny.new(params[:amqp_uri],
         heartbeat: params[:heartbeat],
         vhost: params[:vhost],
-        threaded: params.fetch(:threaded, false)
+        threaded: params.fetch(:threaded, true)
         )
       @conn.start
       @channel = @conn.create_channel(nil, params[:channel_pool_size])
@@ -19,11 +19,11 @@ module ETL::Queue
       @queue = @channel.queue(params[:queue], :durable => true)
       @block = params.fetch(:block, true)
     end
-    
+
     def to_s
       "#{self.class.name}<#{@params[:amqp_uri]}/#{@params[:vhost]}/#{@params[:queue]}>"
     end
-    
+
     # Adds the passed in job details to the run queue
     # hash: Contains the following parameters needed to specify which job to run:
     # * source: Source database identifier
@@ -39,7 +39,7 @@ module ETL::Queue
     def purge
       @queue.purge
     end
-    
+
     def message_count
       @queue.message_count
     end
@@ -50,7 +50,7 @@ module ETL::Queue
         yield delivery_info.delivery_tag, payload
       end
     end
-    
+
     def ack(msg_info)
       @channel.ack(msg_info)
     end
