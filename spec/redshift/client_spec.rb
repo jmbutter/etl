@@ -175,7 +175,8 @@ SQL
       data = [
         { :h_id => 4, :id => 1, :col2 => 'value2a' },
         { :h_id => 5, :id => 2, :col2 => 'value2b' },
-        { :h_id => 6, :id => 3, :col2 => 'value2c' }
+        { :h_id => 6, :id => 3, :col2 => 'value2c' },
+        { :h_id => 7, :id => 4, :col2 => nil }
       ]
       input = ETL::Input::Array.new(data)
       simple_orgs_schema = client.table_schema('public', 'simple_orgs_2')
@@ -185,12 +186,12 @@ SQL
       r = client.fetch('Select * from simple_orgs_2 order by id')
       values = []
       r.map{ |v| values << v }
-      expect(values).to eq([{:id=>1, :col2=>"value2a"}, {:id=>2, :col2=>"value2b"}, {:id=>3, :col2=>"value2c"}])
+      expect(values).to eq([{:id=>1, :col2=>"value2a"}, {:id=>2, :col2=>"value2b"}, {:id=>3, :col2=>"value2c"}, {:id=>4, :col2 => nil }])
 
       r = client.fetch('Select * from simple_orgs_history order by h_id')
       values = []
       r.map{ |v| values << v }
-      expect(values).to eq([{:h_id=>4, :id=>1}, {:h_id=>5, :id=>2}, {:h_id=>6, :id=>3}])
+      expect(values).to eq([{:h_id=>4, :id=>1}, {:h_id=>5, :id=>2}, {:h_id=>6, :id=>3}, {:h_id => 7, :id => 4}])
     end
 
     it 'move data by unloading and copying' do

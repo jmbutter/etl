@@ -1,6 +1,5 @@
 
 module ETL::Schema
-
   # Represents single data table including an ordered set of columns with
   # names and types.
   # columns: Hash of column name to ETL::Schema::Column objects
@@ -11,7 +10,7 @@ module ETL::Schema
   class Table
     attr_accessor :columns, :partition_columns, :primary_key, :name, :like, :temp
 
-    def initialize(name = "", opts = {})
+    def initialize(name = '', opts = {})
       @columns = {}
       @partition_columns = {}
       @primary_key = []
@@ -28,32 +27,31 @@ module ETL::Schema
 
         # translate the database type from Sequel to our types
         type = case col_opts[:type]
-        when :integer
-          :int
-        when :datetime
-          :date
-        when nil
-          :string
-        else
-          col_opts[:type]
-        end
+               when :integer
+                 :int
+               when :datetime
+                 :date
+               when nil
+                 :string
+               else
+                 col_opts[:type]
+               end
 
-        # TODO need to handle width and precision properly
+        # TODO: need to handle width and precision properly
         t.add_column(col_name, type, nil, nil)
       end
-      return t
+      t
     end
 
-
     def to_s
-      a = Array.new
+      a = []
       @columns.each do |k, v|
-        a << "#{k.to_s} #{v.to_s}"
+        a << "#{k} #{v}"
       end
       "(\n  " + a.join(",\n  ") + "\n)\n"
     end
 
-    def add_column(name, type, width, precision, &block)
+    def add_column(name, type, width, precision)
       raise ETL::SchemaError, "Invalid nil type for column '#{name}'" if type.nil?
       t = Column.new(type, width, precision)
       @columns[name.to_s] = t
@@ -72,7 +70,7 @@ module ETL::Schema
       add_column(name, :timestamp, nil, nil, &block)
     end
 
-    def defaultdate(name, dtype="GETDATE()", &block)
+    def defaultdate(name, dtype = 'GETDATE()', &block)
       sym = "datetime default #{dtype}".to_sym
       add_column(name, sym, nil, nil, &block)
     end
@@ -114,10 +112,41 @@ module ETL::Schema
       add_column(name, sym, nil, nil, &block)
     end
 
+    def nvarchar(name, range, &block)
+      sym = "nvarchar (#{range})".to_sym
+      add_column(name, sym, nil, nil, &block)
+    end
+
+    def char(name, range, &block)
+      sym = "char (#{range})".to_sym
+      add_column(name, sym, nil, nil, &block)
+    end
+
+    def string_columns
+      string_columns = []
+      columns.each do |key, c|
+        case c.type
+        when :string
+          string_columns << key
+        when :text
+          string_columns << key
+        end
+        column_type = c.type.to_s.downcase
+        if column_type.start_with?('varchar')
+          string_columns << key
+        elsif column_type.start_with?('char')
+          string_columns << key
+        elsif column_type.start_with?('nvarchar')
+          string_columns << key
+        end
+      end
+      string_columns
+    end
+
     def date_columns
       date_columns = []
       columns.each do |key, c|
-        type = case c.type
+        case c.type
         when :timestamp
           date_columns << key
         when :date
@@ -131,13 +160,13 @@ module ETL::Schema
 
     def has_keys?(keys)
       keys.each do |k|
-        return false  if !@columns.keys.include?(k)
+        return false unless @columns.keys.include?(k)
       end
       true
     end
 
     def add_fk(col, ref_table, ref_col)
-      raise "No column with name #{col.to_s} exists" if !@columns.has_key?(col.to_s)
+      raise "No column with name #{col} exists" unless @columns.key?(col.to_s)
 
       @columns[col.to_s].set_fk(ref_col.to_s, ref_table.to_s)
     end
@@ -145,7 +174,7 @@ module ETL::Schema
     def fks
       fks = []
       @columns.each do |key, value|
-        fks << key if value.fk != nil
+        fks << key unless value.fk.nil?
       end
       fks
     end
@@ -162,6 +191,5 @@ module ETL::Schema
         columns[pks].nullable = false
       end
     end
-
   end
 end
