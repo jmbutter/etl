@@ -8,6 +8,7 @@ require 'pathname'
 require 'fileutils'
 require 'connection_pool'
 require_relative 'stl_load_error'
+require_relative 'nil_string_row_transformer'
 
 module ETL::Redshift
   # when the odbc driver is setup in chef this is the driver's name
@@ -253,10 +254,16 @@ SQL
     # adds rows into the destintation tables based on rows
     # provided by the reader and their add data type.
     def add_rows(reader, table_schemas_lookup, row_transformer, validator = nil, copy_options, add_new_data)
+      copy_options = [] if copy_options.nil?
       # Remove new lines ensures that all row values have newlines removed.
       remove_new_lines = ::ETL::Transform::RemoveNewlines.new
       row_transformers = [remove_new_lines]
+
       row_transformers << row_transformer unless row_transformer.nil?
+
+      # adding this at the end of the line to do the last transformation
+      row_transformers << ::ETL::Redshift::NilStringRowTransformer.new(table_schemas_lookup, "*null_string*")
+      copy_options << "NULL AS '*null_string*'"
 
       csv_files = {}
       csv_file_paths = {}

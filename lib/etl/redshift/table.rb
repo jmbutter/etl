@@ -88,6 +88,8 @@ module ETL
           t.add_sortkey(col_name) if sort_key != '0'
           t.add_encoding(col_name, encoding)
           data_type = 'varchar' if udt_name == 'varchar'
+          data_type = 'char' if udt_name == 'char'
+          data_type = 'nvarchar' if udt_name == 'nvarchar'
 
           if data_type == 'timestamp without time zone'
             data_type = 'timestamp'
@@ -120,6 +122,10 @@ module ETL
                    t.date(col_name)
                  when 'text'
                    t.text(col_name)
+                 when 'char'
+                   t.char(col_name, character_max)
+                 when 'nvarchar'
+                   t.nvarchar(col_name, character_max)
                  when 'varchar'
                    t.varchar(col_name, character_max)
                  when 'numeric'
