@@ -35,7 +35,7 @@ module ETL::Slack
     end
 
     def notify(message, icon_emoji: ":beetle:", attachments: @attachments)
-      ping message, icon_emoji: icon_emoji, attachments: attachments if @rate_limited_at_time.nil?
+      ping message, icon_emoji: icon_emoji, attachments: attachments
     end
 
     def set_color(color)
