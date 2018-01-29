@@ -78,15 +78,15 @@ module ETL::Slack
               @notifier.ping msg, args
               @wait_time_seconds = @start_wait_time_seconds
             end
-          rescue StandardError => ex
-            ETL.logger.exception(ex)
           rescue Slack::Notifier::APIError => api_error
             ETL.logger.exception(ex)
             if api_message.include?('rate_limit')
               @error_occurred_at_time = Time.now @error_occurred_at_time.nil?
               # after each failure doubling the time to wait to backoff
-              @wait_time_seconds = @wait_time_seconds + @wait_time_seconds
+              @wait_time_seconds = @wait_time_seconds + rand(@wait_time_seconds-5, @wait_time_seconds+5)
             end
+          rescue StandardError => ex
+            ETL.logger.exception(ex)
           end
         end
       end
