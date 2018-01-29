@@ -83,7 +83,7 @@ module ETL::Slack
             if api_message.include?('rate_limit')
               @error_occurred_at_time = Time.now @error_occurred_at_time.nil?
               # after each failure doubling the time to wait to backoff
-              @wait_time_seconds = @wait_time_seconds + rand(@wait_time_seconds-5, @wait_time_seconds+5)
+              @wait_time_seconds = @wait_time_seconds + rand(@wait_time_seconds-5..@wait_time_seconds+5)
             end
           rescue StandardError => ex
             ETL.logger.exception(ex)
