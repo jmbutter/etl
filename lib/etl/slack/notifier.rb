@@ -7,7 +7,7 @@ module ETL::Slack
   end
 
   class Notifier
-    attr_accessor :attachments
+    attr_accessor :attachments, :error_occurred_at_time, :wait_time_seconds
 
     def self.create_instance(id)
       notifier ||= begin
@@ -22,6 +22,8 @@ module ETL::Slack
     end
 
     def initialize(webhook_url, channel, username)
+      @start_wait_time_seconds = 30
+      @wait_time_seconds = 30
       @notifier = Slack::Notifier.new(webhook_url, channel: channel, username: username)
       @attachments = []
       ETL::Slack.notifier_mutex = Mutex.new if ETL::Slack.notifier_mutex.nil?
@@ -70,10 +72,31 @@ module ETL::Slack
 
     private
       def ping(msg, **args)
-
         ETL::Slack.notifier_mutex.synchronize do
-          @notifier.ping msg, args
+          begin
+            if should_ping?(msg)
+              @notifier.ping msg, args
+              @wait_time_seconds = @start_wait_time_seconds
+            end
+          rescue Slack::Notifier::APIError => api_error
+            ETL.logger.exception(ex)
+            if api_message.include?('rate_limit')
+              @error_occurred_at_time = Time.now @error_occurred_at_time.nil?
+              # after each failure doubling the time to wait to backoff
+              @wait_time_seconds = @wait_time_seconds + rand(@wait_time_seconds-5..@wait_time_seconds+5)
+            end
+          rescue StandardError => ex
+            ETL.logger.exception(ex)
+          end
         end
+      end
+
+      def should_ping?(msg)
+        return true if @error_occurred_at_time.nil?
+        elapsed_seconds = Time.now - @error_occurred_at_time
+        return true if elapsed_seconds > @wait_time_seconds
+        ETL.logger.debug("Skipping slack output: '#{msg}' due to rate limiting")
+        false
       end
   end
 end

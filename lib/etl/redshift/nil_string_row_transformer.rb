@@ -36,8 +36,16 @@ module ETL
           next unless row.key?(table_name)
           string_columns = @string_columns_hash_by_table[table_name]
           string_columns.each do |key|
-            row[table_name][key.to_sym] = @null_string_value if @symbolized_keys && row[table_name][key.to_sym].nil?
-            row[table_name][key] = @null_string_value if !@symbolized_keys && row[table_name][key].nil?
+            result = row[table_name]
+            if result.is_a?(Array)
+              result.each do |row|
+                row[key.to_sym] = @null_string_value if @symbolized_keys && row[key.to_sym].nil?
+                row[key] = @null_string_value if !@symbolized_keys && row[key].nil?
+              end
+            else
+              result[key.to_sym] = @null_string_value if @symbolized_keys && result[key.to_sym].nil?
+              result[key] = @null_string_value if !@symbolized_keys && result[key].nil?
+            end
           end
         end
       end
