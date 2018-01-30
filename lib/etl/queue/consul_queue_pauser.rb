@@ -34,7 +34,7 @@ module ETL
 
       def wait_seconds
         wait_seconds_str = ENV["ETL_PAUSE_STATE_WAIT_SECONDS"]
-        return 30 if wait_seconds.nil?
+        return 30 if wait_seconds_str.nil?
         wait_seconds_str.to_i
       end
     end
