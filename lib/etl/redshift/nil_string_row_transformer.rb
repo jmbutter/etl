@@ -1,3 +1,5 @@
+require_relative('client')
+
 module ETL
   module Redshift
     # Will convert values that are nil for string to a specified string
@@ -13,6 +15,7 @@ module ETL
       end
 
       def transform(row)
+        return row if row.is_a?(ETL::Redshift::SkipRow)
         if @string_columns_hash_by_table.keys.count == 1
           transform_single_table_row(row)
         else
