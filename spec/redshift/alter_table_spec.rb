@@ -8,25 +8,25 @@ RSpec.describe 'Alter Table tests' do
         at = ::ETL::Redshift::AlterTable.new('app_rds', 'table1')
         at.add_column('info_long', 'varchar(255)')
         sql = at.build_sql
-        expect(sql).to eq("begin transaction;\nALTER TABLE app_rds.table1 add column info_long varchar(255);\nend transaction;\n")
+        expect(sql).to eq("  begin transaction;\n  ALTER TABLE app_rds.table1 add column info_long varchar(255);\n  end transaction;\n")
       end
       it 'Add column with name, type, encoding and not null sql' do
         at = ::ETL::Redshift::AlterTable.new('app_rds', 'table1')
         at.add_column('info_long', 'varchar(255)', "'default_str'", 'lzo', true)
         sql = at.build_sql
-        expect(sql).to eq("begin transaction;\nALTER TABLE app_rds.table1 add column info_long varchar(255) DEFAULT 'default_str' ENCODE lzo NOT NULL;\nend transaction;\n")
+        expect(sql).to eq("  begin transaction;\n  ALTER TABLE app_rds.table1 add column info_long varchar(255) DEFAULT 'default_str' ENCODE lzo NOT NULL;\n  end transaction;\n")
       end
       it 'Drop column sql' do
         at = ::ETL::Redshift::AlterTable.new('app_rds', 'table1')
         at.drop_column('info_long')
         sql = at.build_sql
-        expect(sql).to eq("begin transaction;\nALTER TABLE app_rds.table1 drop column info_long;\nend transaction;\n")
+        expect(sql).to eq("  begin transaction;\n  ALTER TABLE app_rds.table1 drop column info_long;\n  end transaction;\n")
       end
       it 'Rename column sql' do
         at = ::ETL::Redshift::AlterTable.new('app_rds', 'table1')
         at.rename_column('info', 'info_long')
         sql = at.build_sql
-        expect(sql).to eq("begin transaction;\nALTER TABLE app_rds.table1 rename column info TO info_long;\nend transaction;\n")
+        expect(sql).to eq("  begin transaction;\n  ALTER TABLE app_rds.table1 rename column info TO info_long;\n  end transaction;\n")
       end
     end
     context 'Test end to end multiple alter tables with client' do
@@ -50,9 +50,7 @@ RSpec.describe 'Alter Table tests' do
         at2.execute(client)
 
         schema = client.table_schema('public', 't2')
-        columns = []
-        schema.columns.each_key { |c| columns << c }
-        expect(columns).to eq(%w[id new3])
+        expect(schema.columns.keys).to eq(%w[id new3])
       end
     end
   end
