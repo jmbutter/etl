@@ -33,7 +33,7 @@ module ETL
       conn_params = {}
       conn_params[:dbname] = ENV.fetch("#{prefix}_DB_NAME", 'postgres')
       conn_params[:user] = ENV.fetch("#{prefix}_USER", 'root')
-      conn_params[:password] = secret_value("#{prefix}_PASSWORD_FILE_PATH", "#{prefix}_PASSWORD", 'Cannot find the db password')
+      conn_params[:password] = self.class.secret_value("#{prefix}_PASSWORD_FILE_PATH", "#{prefix}_PASSWORD", 'Cannot find the db password')
       conn_params[:host] = ENV.fetch("#{prefix}_HOST", 'localhost')
       conn_params[:port] = ENV.fetch("#{prefix}_PORT", 5432)
       conn_params[:adapter] = ENV.fetch("#{prefix}_ADAPTER", 'postgres')
@@ -63,7 +63,7 @@ module ETL
     def redshift_env_vars(prefix: 'ETL_REDSHIFT')
       redshift_hash = {}
       redshift_hash[:user] = ENV.fetch("#{prefix}_USER", 'masteruser')
-      redshift_hash[:password] = secret_value("#{prefix}_PASSWORD_FILE_PATH", "#{prefix}_PASSWORD", 'Cannot find the redshift password')
+      redshift_hash[:password] = self.class.secret_value("#{prefix}_PASSWORD_FILE_PATH", "#{prefix}_PASSWORD", 'Cannot find the redshift password')
       redshift_hash[:driver] = ENV.fetch("#{prefix}_DRIVER", 'Amazon Redshift (x64)')
       redshift_hash[:server] = ENV.fetch("#{prefix}_HOST")
       redshift_hash[:tmp_dir] = ENV.fetch("#{prefix}_TMP_DIR", '/tmp')
@@ -94,8 +94,7 @@ module ETL
       get_envvars = is_true_value(ENV.fetch('ETL_INFLUX_ENVVARS', false))
       @influx ||= if get_envvars
                     influx_hash = {}
-                    influx_hash[:password] = secret_value('ETL_INFLUX_PASSWORD_FILE_PATH', 'ETL_INFLUXDB_PASSWORD', 'Cannot find the influx password')
-                    influx_hash[:password] = ENV.fetch('ETL_INFLUXDB_PASSWORD')
+                    influx_hash[:password] = self.class.secret_value('ETL_INFLUX_PASSWORD_FILE_PATH', 'ETL_INFLUXDB_PASSWORD', 'Cannot find the influx password')
                     influx_hash[:port] = ENV.fetch('ETL_INFLUXDB_PORT', 8086)
                     influx_hash[:host] = ENV.fetch('ETL_INFLUXDB_HOST', 'influxdb.service.consul')
                     influx_hash[:database] = ENV.fetch('ETL_INFLUXDB_DB', 'metrics')
@@ -167,15 +166,15 @@ module ETL
       @c
     end
 
-    def secret_value(env_secret_file_path_name, env_secret_name, error_message)
+    def self.secret_value(env_secret_file_path_name, env_secret_name, error_message)
       env_file_path = ENV[env_secret_file_path_name]
-      return get_file_as_string(env_file_path) unless env_file_path.nil?
+      return ::ETL::Config.get_file_as_string(env_file_path) unless env_file_path.nil?
       secret = ENV[env_secret_name]
       raise ArgumentError, error_message if secret.nil?
       secret
     end
 
-    def get_file_as_string(filename)
+    def self.get_file_as_string(filename)
       data = ''
       f = File.open(filename, 'r')
       f.each_line do |line|
