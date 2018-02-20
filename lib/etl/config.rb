@@ -131,7 +131,7 @@ module ETL
 
                         core_hash[:job] = {}
                         core_hash[:job][:class_dir] = ENV.fetch('ETL_JOB_DIR', ::Dir.pwd)
-                        core_hash[:job][:data_dir] = ENV.fetch('ETL_DATA_DIR', ::Dir.pwd)
+                        core_hash[:job][:data_dir] = ENV.fetch('ETL_DATA_DIR')
                         core_hash[:job][:retry_max] = 5 # max times retrying jobs
                         core_hash[:job][:retry_wait] = 4 # seconds
                         core_hash[:job][:retry_mult] = 2.0 # exponential backoff multiplier

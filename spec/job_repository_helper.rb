@@ -7,7 +7,10 @@ class JobRunRepositoryHelper
   include Singleton
 
   def initialize()
+    ETL.config.core_saved = nil
     @conn_params = ETL.config.core[:database]
+    @conn_params.delete(:adapter)
+    puts "conn: #{@conn_params}"
     @conn ||= PG.connect(@conn_params)
   end
   def delete_all

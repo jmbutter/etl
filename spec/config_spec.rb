@@ -35,14 +35,19 @@ RSpec.describe 'secrets' do
     it 'Expect queue defaults values come back loading core' do
       ::ETL.config.core_saved = nil
       saved_value = ENV['ETL_CORE_ENVVARS']
+      saved_db_password = ENV['ETL_DATABASE_PASSWORD']
+      saved_data_dir = ENV['ETL_DATA_DIR']
       begin
         ENV['ETL_CORE_ENVVARS'] = 'TRUE'
         ENV['ETL_DATABASE_PASSWORD'] = 'test'
+        ENV['ETL_DATA_DIR'] = './'
         values = ::ETL.config.core
         expect(values[:queue]).to eq ({ class: 'ETL::Queue::File', path: '/var/tmp/etl_queue' })
       ensure
+        ::ETL.config.core_saved = nil
         ENV['ETL_CORE_ENVVARS'] = saved_value
-        ENV.delete('ETL_DATABASE_PASSWORD')
+        ENV['ETL_DATABASE_PASSWORD'] = saved_db_password
+        ENV['ETL_DATA_DIR'] = saved_data_dir
       end
     end
 
@@ -50,10 +55,13 @@ RSpec.describe 'secrets' do
       ::ETL.config.core_saved = nil
       saved_value = ENV['ETL_CORE_ENVVARS']
       saved_queue_class = ENV['ETL_QUEUE_CLASS']
+      saved_db_password = ENV['ETL_DATABASE_PASSWORD']
+      saved_data_dir = ENV['ETL_DATA_DIR']
       begin
         ENV['ETL_CORE_ENVVARS'] = 'TRUE'
         ENV['ETL_QUEUE_CLASS'] = '::ETL::Queue::RabbitMQ'
         ENV['ETL_DATABASE_PASSWORD'] = 'test'
+        ENV['ETL_DATA_DIR'] = './'
         values = ::ETL.config.core
         expect(values[:queue]).to eq ({ amqp_uri: nil, channel_pool_size: 1,
                                         host: '127.0.0.1', port: 5672,
@@ -63,9 +71,11 @@ RSpec.describe 'secrets' do
                                         class: '::ETL::Queue::RabbitMQ',
                                         path: '/var/tmp/etl_queue', vhost: '/' })
       ensure
+        ::ETL.config.core_saved = nil
         ENV['ETL_CORE_ENVVARS'] = saved_value
         ENV['ETL_QUEUE_CLASS'] = saved_queue_class
-        ENV.delete('ETL_DATABASE_PASSWORD')
+        ENV['ETL_DATABASE_PASSWORD'] = saved_db_password
+        ENV['ETL_DATA_DIR'] = saved_data_dir
       end
     end
   end
