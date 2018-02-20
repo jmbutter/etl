@@ -25,17 +25,47 @@ RSpec.describe 'secrets' do
     end
   end
 
-  context 'validate a database env' do
-    it 'Expect secret token env var not specified should error' do
+  context 'validate rabbit mq env vars' do
+    it 'Expect rabbitmq values come back correctly' do
+      values = ::ETL.config.rabbitmq_env_vars
+      expect(values).to eq ({ amqp_uri: nil, host: '127.0.0.1', port: 5672, user: 'guest',
+                              password: 'guest', heartbeat: 30, vhost: '/', channel_pool_size: 1,
+                              prefetch_count: 1, queue: nil })
+    end
+    it 'Expect queue defaults values come back loading core' do
+      ::ETL.config.core_saved = nil
+      saved_value = ENV['ETL_CORE_ENVVARS']
       begin
-        File.write('./secret_file2.txt', 'MYSECRET!')
-        ENV['TEST_PASSWORD_FILE_PATH'] = './secret_file2.txt'
-        db = ::ETL.config.database_env_vars('TEST')
-        puts "db: #{db}"
-        ENV.delete('TEST_PASSWORD_FILE_PATH')
-        expect(db[:password]).to eq 'MYSECRET!'
+        ENV['ETL_CORE_ENVVARS'] = 'TRUE'
+        ENV['ETL_DATABASE_PASSWORD'] = 'test'
+        values = ::ETL.config.core
+        expect(values[:queue]).to eq ({ class: 'ETL::Queue::File', path: '/var/tmp/etl_queue' })
       ensure
-        File.delete('./secret_file2.txt')
+        ENV['ETL_CORE_ENVVARS'] = saved_value
+        ENV.delete('ETL_DATABASE_PASSWORD')
+      end
+    end
+
+    it 'Expect rabbitmq queue defaults values come back core with rabbit set' do
+      ::ETL.config.core_saved = nil
+      saved_value = ENV['ETL_CORE_ENVVARS']
+      saved_queue_class = ENV['ETL_QUEUE_CLASS']
+      begin
+        ENV['ETL_CORE_ENVVARS'] = 'TRUE'
+        ENV['ETL_QUEUE_CLASS'] = '::ETL::Queue::RabbitMQ'
+        ENV['ETL_DATABASE_PASSWORD'] = 'test'
+        values = ::ETL.config.core
+        expect(values[:queue]).to eq ({ amqp_uri: nil, channel_pool_size: 1,
+                                        host: '127.0.0.1', port: 5672,
+                                        user: 'guest', password: 'guest',
+                                        heartbeat: 30, prefetch_count: 1,
+                                        queue: nil,
+                                        class: '::ETL::Queue::RabbitMQ',
+                                        path: '/var/tmp/etl_queue', vhost: '/' })
+      ensure
+        ENV['ETL_CORE_ENVVARS'] = saved_value
+        ENV['ETL_QUEUE_CLASS'] = saved_queue_class
+        ENV.delete('ETL_DATABASE_PASSWORD')
       end
     end
   end

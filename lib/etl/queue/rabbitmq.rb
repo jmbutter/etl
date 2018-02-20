@@ -8,11 +8,24 @@ module ETL::Queue
 
     def initialize(params)
       @params = params
-      @conn = Bunny.new(params[:amqp_uri],
-        heartbeat: params[:heartbeat],
-        vhost: params[:vhost],
-        threaded: params.fetch(:threaded, true)
+      amqp_uri = params[:amqp_uri]
+      if ampq_uri.nil? then
+        @conn = Bunny.new(params[:host],
+          port: params[:port],
+          heartbeat: params[:heartbeat],
+          vhost: params[:vhost],
+          threaded: params.fetch(:threaded, true),
+          user: params[:username],
+          password: params[:password],
         )
+      else
+        @conn = Bunny.new(amqp_uri,
+          heartbeat: params[:heartbeat],
+          vhost: params[:vhost],
+          threaded: params.fetch(:threaded, true),
+          )
+      end
+
       @conn.start
       @channel = @conn.create_channel(nil, params[:channel_pool_size])
       @channel.prefetch(params[:prefetch_count])
