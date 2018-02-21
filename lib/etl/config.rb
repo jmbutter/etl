@@ -5,7 +5,7 @@ require 'singleton'
 module ETL
   # Configuration class
   class Config
-    attr_accessor :config_dir, :db
+    attr_accessor :config_dir, :db, :core_saved
 
     include Singleton
 
@@ -124,46 +124,69 @@ module ETL
 
     def core
       get_envvars = is_true_value(ENV.fetch('ETL_CORE_ENVVARS', false))
-      @c ||= if get_envvars
-               core_hash = {}
-               core_hash[:default] = {}
-               core_hash[:default][:class_dir] = ENV.fetch('ETL_CLASS_DIR', ::Dir.pwd)
+      @core_saved ||= if get_envvars
+                        core_hash = {}
+                        core_hash[:default] = {}
+                        core_hash[:default][:class_dir] = ENV.fetch('ETL_CLASS_DIR', ::Dir.pwd)
 
-               core_hash[:job] = {}
-               core_hash[:job][:class_dir] = ENV.fetch('ETL_JOB_DIR', ::Dir.pwd)
-               core_hash[:job][:data_dir] = ENV.fetch('ETL_DATA_DIR')
-               core_hash[:job][:retry_max] = 5 # max times retrying jobs
-               core_hash[:job][:retry_wait] = 4 # seconds
-               core_hash[:job][:retry_mult] = 2.0 # exponential backoff multiplier
+                        core_hash[:job] = {}
+                        core_hash[:job][:class_dir] = ENV.fetch('ETL_JOB_DIR', ::Dir.pwd)
+                        core_hash[:job][:data_dir] = ENV.fetch('ETL_DATA_DIR')
+                        core_hash[:job][:retry_max] = 5 # max times retrying jobs
+                        core_hash[:job][:retry_wait] = 4 # seconds
+                        core_hash[:job][:retry_mult] = 2.0 # exponential backoff multiplier
 
-               core_hash[:log] = {}
-               core_hash[:log][:class] = 'ETL::Logger'
-               core_hash[:log][:level] = ENV.fetch('ETL_LOG_LEVEL', 'debug')
+                        core_hash[:log] = {}
+                        core_hash[:log][:class] = 'ETL::Logger'
+                        core_hash[:log][:level] = ENV.fetch('ETL_LOG_LEVEL', 'debug')
 
-               core_hash[:database] = database_env_vars
+                        core_hash[:database] = database_env_vars
 
-               core_hash[:queue] = {}
-               core_hash[:queue][:class] = ENV.fetch('ETL_QUEUE_CLASS', 'ETL::Queue::File')
-               core_hash[:queue][:path] = ENV.fetch('ETL_QUEUE_PATH', '/var/tmp/etl_queue')
+                        core_hash[:queue] = {}
+                        etl_queue_class = ENV.fetch('ETL_QUEUE_CLASS', 'ETL::Queue::File')
 
-               core_hash[:metrics] = {}
-               core_hash[:metrics][:class] = ENV.fetch('ETL_METRICS_CLASS', 'ETL::Metrics')
-               core_hash[:metrics][:file] = ENV.fetch('ETL_METRICS_FILE_PATH', '/tmp/etl-metrics.log')
-               core_hash[:metrics][:series] = 'etlv2_job_run'
+                        # rabbitmq queue parameters
+                        puts "queue class: #{etl_queue_class}"
+                        if etl_queue_class == '::ETL::Queue::RabbitMQ'
+                          core_hash[:queue] = rabbitmq_env_vars
+                        end
+                        core_hash[:queue][:class] = etl_queue_class
+                        core_hash[:queue][:path] = ENV.fetch('ETL_QUEUE_PATH', '/var/tmp/etl_queue')
 
-               slack = {}
-               slack[:url] = ENV.fetch('ETL_SLACK_URL', nil)
-               slack[:channel] = ENV.fetch('ETL_SLACK_CHANNEL', nil)
-               slack[:username] = ENV.fetch('ETL_SLACK_USERNAME', nil)
-               unless slack[:url] && slack[:channel] && slack[:username]
-                 core_hash[:slack] = slack
-               end
-               core_hash
-             else
-               self.class.load_file(core_file)
+                        core_hash[:metrics] = {}
+                        core_hash[:metrics][:class] = ENV.fetch('ETL_METRICS_CLASS', 'ETL::Metrics')
+                        core_hash[:metrics][:file] = ENV.fetch('ETL_METRICS_FILE_PATH', '/tmp/etl-metrics.log')
+                        core_hash[:metrics][:series] = 'etlv2_job_run'
+
+                        slack = {}
+                        slack[:url] = ENV.fetch('ETL_SLACK_URL', nil)
+                        slack[:channel] = ENV.fetch('ETL_SLACK_CHANNEL', nil)
+                        slack[:username] = ENV.fetch('ETL_SLACK_USERNAME', nil)
+                        unless slack[:url] && slack[:channel] && slack[:username]
+                          core_hash[:slack] = slack
+                        end
+                        core_hash
+                      else
+                        self.class.load_file(core_file)
              end
-      yield @c if block_given?
-      @c
+      yield @core_saved if block_given?
+      @core_saved
+    end
+
+    def rabbitmq_env_vars
+      hash = {}
+      # rabbitmq queue parameters
+      hash[:amqp_uri] = ENV.fetch('ETL_RABBIT_URI', nil)
+      hash[:host] = ENV.fetch('ETL_RABBIT_HOST', '127.0.0.1')
+      hash[:port] = ENV.fetch('ETL_RABBIT_PORT', 5672)
+      hash[:user] = ENV.fetch('ETL_RABBIT_USERNAME', 'guest')
+      hash[:password] = ENV.fetch('ETL_RABBIT_PASSWORD', 'guest')
+      hash[:heartbeat] = ENV.fetch('ETL_RABBIT_HEARTBEAT', 30)
+      hash[:vhost] = ENV.fetch('ETL_RABBIT_VHOST', '/')
+      hash[:channel_pool_size] = ENV.fetch('ETL_RABBIT_CHANNEL_POOL_SIZE', 1)
+      hash[:prefetch_count] = ENV.fetch('ETL_RABBIT_CHANNEL_PREFETCH_COUNT', 1)
+      hash[:queue] = ENV.fetch('ETL_RABBIT_QUEUE_NAME', nil)
+      hash
     end
 
     def self.secret_value(env_secret_file_path_name, env_secret_name, error_message)

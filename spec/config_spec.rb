@@ -25,17 +25,57 @@ RSpec.describe 'secrets' do
     end
   end
 
-  context 'validate a database env' do
-    it 'Expect secret token env var not specified should error' do
+  context 'validate rabbit mq env vars' do
+    it 'Expect rabbitmq values come back correctly' do
+      values = ::ETL.config.rabbitmq_env_vars
+      expect(values).to eq ({ amqp_uri: nil, host: '127.0.0.1', port: 5672, user: 'guest',
+                              password: 'guest', heartbeat: 30, vhost: '/', channel_pool_size: 1,
+                              prefetch_count: 1, queue: nil })
+    end
+    it 'Expect queue defaults values come back loading core' do
+      ::ETL.config.core_saved = nil
+      saved_value = ENV['ETL_CORE_ENVVARS']
+      saved_db_password = ENV['ETL_DATABASE_PASSWORD']
+      saved_data_dir = ENV['ETL_DATA_DIR']
       begin
-        File.write('./secret_file2.txt', 'MYSECRET!')
-        ENV['TEST_PASSWORD_FILE_PATH'] = './secret_file2.txt'
-        db = ::ETL.config.database_env_vars('TEST')
-        puts "db: #{db}"
-        ENV.delete('TEST_PASSWORD_FILE_PATH')
-        expect(db[:password]).to eq 'MYSECRET!'
+        ENV['ETL_CORE_ENVVARS'] = 'TRUE'
+        ENV['ETL_DATABASE_PASSWORD'] = 'test'
+        ENV['ETL_DATA_DIR'] = './'
+        values = ::ETL.config.core
+        expect(values[:queue]).to eq ({ class: 'ETL::Queue::File', path: '/var/tmp/etl_queue' })
       ensure
-        File.delete('./secret_file2.txt')
+        ::ETL.config.core_saved = nil
+        ENV['ETL_CORE_ENVVARS'] = saved_value
+        ENV['ETL_DATABASE_PASSWORD'] = saved_db_password
+        ENV['ETL_DATA_DIR'] = saved_data_dir
+      end
+    end
+
+    it 'Expect rabbitmq queue defaults values come back core with rabbit set' do
+      ::ETL.config.core_saved = nil
+      saved_value = ENV['ETL_CORE_ENVVARS']
+      saved_queue_class = ENV['ETL_QUEUE_CLASS']
+      saved_db_password = ENV['ETL_DATABASE_PASSWORD']
+      saved_data_dir = ENV['ETL_DATA_DIR']
+      begin
+        ENV['ETL_CORE_ENVVARS'] = 'TRUE'
+        ENV['ETL_QUEUE_CLASS'] = '::ETL::Queue::RabbitMQ'
+        ENV['ETL_DATABASE_PASSWORD'] = 'test'
+        ENV['ETL_DATA_DIR'] = './'
+        values = ::ETL.config.core
+        expect(values[:queue]).to eq ({ amqp_uri: nil, channel_pool_size: 1,
+                                        host: '127.0.0.1', port: 5672,
+                                        user: 'guest', password: 'guest',
+                                        heartbeat: 30, prefetch_count: 1,
+                                        queue: nil,
+                                        class: '::ETL::Queue::RabbitMQ',
+                                        path: '/var/tmp/etl_queue', vhost: '/' })
+      ensure
+        ::ETL.config.core_saved = nil
+        ENV['ETL_CORE_ENVVARS'] = saved_value
+        ENV['ETL_QUEUE_CLASS'] = saved_queue_class
+        ENV['ETL_DATABASE_PASSWORD'] = saved_db_password
+        ENV['ETL_DATA_DIR'] = saved_data_dir
       end
     end
   end
