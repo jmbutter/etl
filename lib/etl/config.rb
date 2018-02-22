@@ -10,11 +10,14 @@ module ETL
     include Singleton
 
     def initialize
-      @config_dir = ENV['ETL_CONFIG_DIR'] || File.expand_path('../../../etc', __FILE__)
+    end
+
+    def config_dir
+      ENV['ETL_CONFIG_DIR'] || File.expand_path('../../../etc', __FILE__)
     end
 
     def db_file
-      @config_dir + '/database.yml'
+      config_dir + '/database.yml'
     end
 
     def db
@@ -41,7 +44,7 @@ module ETL
     end
 
     def aws_file
-      @config_dir + '/aws.yml'
+      config_dir + '/aws.yml'
     end
 
     def aws
@@ -71,7 +74,7 @@ module ETL
     end
 
     def redshift_file
-      @config_dir + '/redshift.yml'
+      config_dir + '/redshift.yml'
     end
 
     def redshift
@@ -87,7 +90,7 @@ module ETL
     end
 
     def influx_file
-      @config_dir + '/influx.yml'
+      config_dir + '/influx.yml'
     end
 
     def influx
@@ -119,7 +122,7 @@ module ETL
     end
 
     def core_file
-      @config_dir + '/core.yml'
+      config_dir + '/core.yml'
     end
 
     def core
@@ -176,10 +179,12 @@ module ETL
     def rabbitmq_env_vars
       hash = {}
       # rabbitmq queue parameters
-      hash[:amqp_uri] = ENV.fetch('ETL_RABBIT_URI', nil)
+      amqp_uri = ENV.fetch('ETL_RABBIT_URI', nil)
+      hash[:amqp_uri] = amqp_uri unless amqp_uri.nil?
+
       hash[:host] = ENV.fetch('ETL_RABBIT_HOST', '127.0.0.1')
       hash[:port] = ENV.fetch('ETL_RABBIT_PORT', 5672)
-      hash[:user] = ENV.fetch('ETL_RABBIT_USERNAME', 'guest')
+      hash[:username] = ENV.fetch('ETL_RABBIT_USERNAME', 'guest')
       hash[:password] = ENV.fetch('ETL_RABBIT_PASSWORD', 'guest')
       hash[:heartbeat] = ENV.fetch('ETL_RABBIT_HEARTBEAT', 30)
       hash[:vhost] = ENV.fetch('ETL_RABBIT_VHOST', '/')

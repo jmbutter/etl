@@ -28,7 +28,7 @@ RSpec.describe 'secrets' do
   context 'validate rabbit mq env vars' do
     it 'Expect rabbitmq values come back correctly' do
       values = ::ETL.config.rabbitmq_env_vars
-      expect(values).to eq ({ amqp_uri: nil, host: '127.0.0.1', port: 5672, user: 'guest',
+      expect(values).to eq ({ host: '127.0.0.1', port: 5672, username: 'guest',
                               password: 'guest', heartbeat: 30, vhost: '/', channel_pool_size: 1,
                               prefetch_count: 1, queue: nil })
     end
@@ -50,22 +50,24 @@ RSpec.describe 'secrets' do
         ENV['ETL_DATA_DIR'] = saved_data_dir
       end
     end
-
-    it 'Expect rabbitmq queue defaults values come back core with rabbit set' do
+    
+    it 'Expect rabbitmq queue values come back core with rabbit set' do
       ::ETL.config.core_saved = nil
       saved_value = ENV['ETL_CORE_ENVVARS']
       saved_queue_class = ENV['ETL_QUEUE_CLASS']
       saved_db_password = ENV['ETL_DATABASE_PASSWORD']
       saved_data_dir = ENV['ETL_DATA_DIR']
+      saved_host = ENV['ETL_RABBIT_HOST']
       begin
         ENV['ETL_CORE_ENVVARS'] = 'TRUE'
         ENV['ETL_QUEUE_CLASS'] = '::ETL::Queue::RabbitMQ'
         ENV['ETL_DATABASE_PASSWORD'] = 'test'
         ENV['ETL_DATA_DIR'] = './'
+        ENV['ETL_RABBIT_HOST'] = 'foobar'
         values = ::ETL.config.core
-        expect(values[:queue]).to eq ({ amqp_uri: nil, channel_pool_size: 1,
-                                        host: '127.0.0.1', port: 5672,
-                                        user: 'guest', password: 'guest',
+        expect(values[:queue]).to eq ({ channel_pool_size: 1,
+                                        host: 'foobar', port: 5672,
+                                        username: 'guest', password: 'guest',
                                         heartbeat: 30, prefetch_count: 1,
                                         queue: nil,
                                         class: '::ETL::Queue::RabbitMQ',
@@ -76,6 +78,7 @@ RSpec.describe 'secrets' do
         ENV['ETL_QUEUE_CLASS'] = saved_queue_class
         ENV['ETL_DATABASE_PASSWORD'] = saved_db_password
         ENV['ETL_DATA_DIR'] = saved_data_dir
+        ENV['ETL_RABBIT_HOST'] = saved_host
       end
     end
   end
