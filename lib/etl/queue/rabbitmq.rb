@@ -9,15 +9,17 @@ module ETL::Queue
     def initialize(params)
       @params = params
       amqp_uri = params[:amqp_uri]
-      if ampq_uri.nil? then
-        @conn = Bunny.new(params[:host],
+      if amqp_uri.nil? then
+        opts = {
+          host: params[:host],
           port: params[:port],
           heartbeat: params[:heartbeat],
           vhost: params[:vhost],
           threaded: params.fetch(:threaded, true),
-          user: params[:username],
+          username: params[:username],
           password: params[:password],
-        )
+        }
+        @conn = Bunny.new(nil, opts)
       else
         @conn = Bunny.new(amqp_uri,
           heartbeat: params[:heartbeat],
