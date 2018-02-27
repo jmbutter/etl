@@ -6,7 +6,6 @@ require 'odbc'
 require 'mixins/cached_logger'
 require 'pathname'
 require 'fileutils'
-require 'connection_pool'
 require_relative 'stl_load_error'
 require_relative 'nil_string_row_transformer'
 
