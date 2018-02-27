@@ -20,7 +20,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'ruby-odbc'
   spec.add_dependency 'diplomat'
-  spec.add_dependency 'connection_pool'
   spec.add_dependency 'clamp'
   spec.add_dependency 'mysql2'
   spec.add_dependency 'sequel'
