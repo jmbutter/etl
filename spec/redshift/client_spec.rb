@@ -238,67 +238,6 @@ SQL
         c.execute(create_table)
       end
 
-      it 'Upload succeeds first time' do
-        create_table(client)
-
-        csv_file_path = "valid_csv_#{SecureRandom.hex(5)}"
-        csv_file = ::CSV.open(csv_file_path, 'w', col_sep: client.delimiter)
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '2']))
-        csv_file.close
-
-        error = client.copy_from_s3_with_retries("test_s3_copy", csv_file_path, [])
-        sleep(3)
-
-        expect(error[0]).to eq(nil)
-        result = client.fetch("select count(*) from test_s3_copy").all
-
-        expect(result[0][:count]).to eq(1)
-      end
-
-      it "Second row fails, is removed then data uploaded" do
-        create_table(client)
-        client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
-        client2.stl_load_retries = 4
-
-        csv_file_name = "valid_csv_#{SecureRandom.hex(5)}"
-        csv_file = ::CSV.open(csv_file_name, 'w', col_sep: client.delimiter)
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '1']))
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '2']))
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '3']))
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '38hn8v3089j3v'])) # string too long
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '5']))
-        csv_file.close
-
-        error = client2.copy_from_s3_with_retries("test_s3_copy", csv_file_name, [])
-        expect(error[0]).to include("test_s3_copy_errors")
-        expect(error[1]).to include("s3://ss-uw1-stg.redshift-testing/error_lines/")
-
-        result = client2.fetch("select count(*) from test_s3_copy").all
-        expect(result[0][:count]).to eq(4)
-        ::File.delete(error[0])
-      end
-
-      it "Fails when limit of number of retries occurs, get specific error" do
-        create_table(client)
-        client2 = ETL::Redshift::Client.new(ETL.config.redshift[:test], ETL.config.aws[:test])
-        client2.stl_load_retries = 1
-
-        csv_file_name = "valid_csv_#{SecureRandom.hex(5)}"
-        csv_file = ::CSV.open(csv_file_name, 'w', col_sep: client.delimiter)
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, 'jfhcrhnvc89n23irnm9gh2vih28vhbn2v882hv8hbvh8w3n8d'])) # string too long
-        csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '2bflababahabavb']))
-        csv_file.close
-
-        found_error = nil
-        begin
-          client2.copy_from_s3_with_retries("test_s3_copy", csv_file_name, [])
-        rescue => e
-          found_error = e
-        end
-        expect(found_error.message).to eq("STL Load error: Reason: 'String length exceeds DDL length', LineNumber: 1, Position: 2, Rawline '1.2bflababahabavb', \nparsed row: '{\"id\"=>\"1\"}'")
-        ::File.delete(e.local_error_file)
-      end
-
       it '#copy_multiple_files_from_s3' do
         create_table(client)
 
@@ -322,25 +261,6 @@ SQL
 
         ::File.delete(csv_file_path)
       end
-    end
-
-    it "remove line at" do
-      csv_file_name = "remove_csv_#{SecureRandom.hex(5)}"
-      csv_file = ::CSV.open(csv_file_name, 'w', col_sep: client.delimiter)
-      csv_file.add_row(CSV::Row.new(["id", "col2"], [1, 'jfhcrhnvc89n23irnm9gh2vih28vhbn2v882hv8hbvh8w3n8d'])) # string too long
-      csv_file.add_row(CSV::Row.new(["id", "col2"], [1, '2bflababahabavb']))
-      csv_file.close
-      line_removed = ::ETL::Redshift::Client.remove_line_at(2, csv_file_name, "#{csv_file_name}_1")
-      expect(line_removed).to eq("1\u00012bflababahabavb\n")
-      lines = []
-      File.open("#{csv_file_name}_1", "r") do |f|
-        f.each_line do |line|
-          lines << line
-        end
-      end
-      expect(lines).to eq(["1\u0001jfhcrhnvc89n23irnm9gh2vih28vhbn2v882hv8hbvh8w3n8d\n"])
-      ::File.delete(csv_file_name)
-      ::File.delete("#{csv_file_name}_1")
     end
 
     it "#upload_multiple_files_to_s3" do
