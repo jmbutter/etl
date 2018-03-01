@@ -102,6 +102,7 @@ module ETL::Output
         DATEFORMAT AS 'auto'
         DELIMITER '#{@delimiter}'
         REGION '#{@aws_params[:region]}'
+        TRUNCATECOLUMNS
 SQL
 
       @client.execute(sql)
@@ -202,6 +203,7 @@ SQL
         DATEFORMAT AS 'auto'
         DELIMITER '#{@delimiter}'
         REGION '#{@aws_params[:region]}'
+        TRUNCATECOLUMNS
 SQL
         @client.execute(sql)
       end
