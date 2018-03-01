@@ -165,7 +165,7 @@ module ETL
                         slack[:url] = ENV.fetch('ETL_SLACK_URL', nil)
                         slack[:channel] = ENV.fetch('ETL_SLACK_CHANNEL', nil)
                         slack[:username] = ENV.fetch('ETL_SLACK_USERNAME', nil)
-                        unless slack[:url] && slack[:channel] && slack[:username]
+                        if slack[:url] && slack[:channel] && slack[:username]
                           core_hash[:slack] = slack
                         end
                         core_hash
